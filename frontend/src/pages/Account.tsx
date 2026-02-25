@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { supabase } from '../lib/supabase'
-import { Mail, Lock, User, LogOut, Leaf } from 'lucide-react'
 import { useQuery } from '@tanstack/react-query'
+import { LogOut } from 'lucide-react'
 
 export default function Account() {
     const [mode, setMode] = useState<'login' | 'signup'>('login')
@@ -9,7 +9,7 @@ export default function Account() {
     const [password, setPassword] = useState('')
     const [name, setName] = useState('')
     const [loading, setLoading] = useState(false)
-    const [message, setMessage] = useState('')
+    const [message, setMessage] = useState<{ text: string; type: 'success' | 'error' } | null>(null)
 
     const { data: user, refetch } = useQuery({
         queryKey: ['auth-user'],
@@ -21,7 +21,7 @@ export default function Account() {
 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault()
-        setLoading(true); setMessage('')
+        setLoading(true); setMessage(null)
         try {
             if (mode === 'signup') {
                 const { error } = await supabase.auth.signUp({
@@ -29,14 +29,14 @@ export default function Account() {
                     options: { data: { full_name: name } }
                 })
                 if (error) throw error
-                setMessage('✅ Check your email to confirm your account!')
+                setMessage({ text: 'Check your email to confirm your account.', type: 'success' })
             } else {
                 const { error } = await supabase.auth.signInWithPassword({ email, password })
                 if (error) throw error
                 refetch()
             }
         } catch (err) {
-            setMessage(`❌ ${(err as Error).message}`)
+            setMessage({ text: (err as Error).message, type: 'error' })
         } finally {
             setLoading(false)
         }
@@ -47,58 +47,98 @@ export default function Account() {
         refetch()
     }
 
+    /* ── Signed in ────────────────────────────────────────────────── */
     if (user) {
         return (
-            <main style={{ paddingTop: 'calc(68px + 3rem)' }}>
-                <div className="container" style={{ maxWidth: 520 }}>
-                    <div className="auth-card">
-                        <div className="auth-logo"><Leaf size={20} style={{ verticalAlign: 'middle', marginRight: 8 }} />My Account</div>
-                        <div style={{ marginBottom: '1.5rem' }}>
-                            <div style={{ fontSize: '0.85rem', color: 'var(--color-text-muted)', marginBottom: '0.3rem' }}>Signed in as</div>
-                            <div style={{ fontWeight: 600 }}>{user.email}</div>
+            <div className="auth-page">
+                <div className="auth-card">
+                    <div className="auth-logo">Color of Nature</div>
+                    <div style={{ marginBottom: '1.5rem', textAlign: 'center' }}>
+                        <div style={{ fontSize: '0.7rem', letterSpacing: '0.14em', textTransform: 'uppercase', color: 'var(--ink-muted)', marginBottom: '0.4rem' }}>
+                            Signed in as
                         </div>
-                        <div style={{ padding: '1rem', background: 'rgba(163,230,53,0.07)', borderRadius: 'var(--radius-sm)', marginBottom: '1.5rem', fontSize: '0.85rem', color: 'var(--color-text-muted)' }}>
-                            🌿 Your orders will appear here once you place them. Order history syncs with our Odoo ERP automatically.
-                        </div>
-                        <button className="btn btn-ghost" style={{ width: '100%', justifyContent: 'center' }} onClick={handleLogout}>
-                            <LogOut size={16} /> Sign Out
-                        </button>
+                        <div style={{ fontFamily: 'var(--font-serif)', fontSize: '1.1rem' }}>{user.email}</div>
                     </div>
+                    <div style={{
+                        padding: '1rem', background: 'var(--sage-light)',
+                        marginBottom: '2rem', fontSize: '0.82rem',
+                        color: 'var(--ink-muted)', lineHeight: 1.7
+                    }}>
+                        Your orders will appear here once placed. Order history syncs with our Odoo ERP automatically.
+                    </div>
+                    <button
+                        onClick={handleLogout}
+                        className="btn btn-outline"
+                        style={{ width: '100%', justifyContent: 'center' }}
+                    >
+                        <LogOut size={14} strokeWidth={1.5} /> Sign Out
+                    </button>
                 </div>
-            </main>
+            </div>
         )
     }
 
+    /* ── Auth form ────────────────────────────────────────────────── */
     return (
-        <main>
+        <div className="auth-page">
             <div className="auth-card">
-                <div className="auth-logo">🌿 Color of Nature</div>
-                <div style={{ display: 'flex', gap: '0.5rem', marginBottom: '2rem' }}>
-                    <button className={`btn ${mode === 'login' ? 'btn-primary' : 'btn-ghost'}`} style={{ flex: 1, justifyContent: 'center' }} onClick={() => setMode('login')}>Sign In</button>
-                    <button className={`btn ${mode === 'signup' ? 'btn-primary' : 'btn-ghost'}`} style={{ flex: 1, justifyContent: 'center' }} onClick={() => setMode('signup')}>Sign Up</button>
+                <div className="auth-logo">Color of Nature</div>
+
+                <div className="auth-tabs">
+                    <button
+                        className={`auth-tab${mode === 'login' ? ' active' : ''}`}
+                        onClick={() => setMode('login')}
+                    >Sign In</button>
+                    <button
+                        className={`auth-tab${mode === 'signup' ? ' active' : ''}`}
+                        onClick={() => setMode('signup')}
+                    >Create Account</button>
                 </div>
 
                 <form onSubmit={handleSubmit}>
                     {mode === 'signup' && (
                         <div className="form-group">
-                            <label className="form-label"><User size={13} style={{ verticalAlign: 'middle' }} /> Full Name</label>
-                            <input className="form-input" type="text" placeholder="Your name" value={name} onChange={e => setName(e.target.value)} required />
+                            <label className="form-label">Full Name</label>
+                            <input
+                                className="form-input" type="text"
+                                placeholder="Your name" value={name}
+                                onChange={e => setName(e.target.value)} required
+                            />
                         </div>
                     )}
                     <div className="form-group">
-                        <label className="form-label"><Mail size={13} style={{ verticalAlign: 'middle' }} /> Email</label>
-                        <input className="form-input" type="email" placeholder="you@example.com" value={email} onChange={e => setEmail(e.target.value)} required />
+                        <label className="form-label">Email</label>
+                        <input
+                            className="form-input" type="email"
+                            placeholder="you@example.com" value={email}
+                            onChange={e => setEmail(e.target.value)} required
+                        />
                     </div>
                     <div className="form-group">
-                        <label className="form-label"><Lock size={13} style={{ verticalAlign: 'middle' }} /> Password</label>
-                        <input className="form-input" type="password" placeholder="••••••••" value={password} onChange={e => setPassword(e.target.value)} required />
+                        <label className="form-label">Password</label>
+                        <input
+                            className="form-input" type="password"
+                            placeholder="••••••••" value={password}
+                            onChange={e => setPassword(e.target.value)} required
+                        />
                     </div>
-                    {message && <div style={{ fontSize: '0.85rem', marginBottom: '1rem', color: message.startsWith('✅') ? 'var(--color-primary)' : '#f87171' }}>{message}</div>}
-                    <button className="btn btn-primary" type="submit" style={{ width: '100%', justifyContent: 'center' }} disabled={loading}>
+
+                    {message && (
+                        <div className={`form-message ${message.type}`} style={{ marginBottom: '1.25rem' }}>
+                            {message.text}
+                        </div>
+                    )}
+
+                    <button
+                        className="btn btn-primary"
+                        type="submit"
+                        style={{ width: '100%', justifyContent: 'center', marginTop: '0.5rem' }}
+                        disabled={loading}
+                    >
                         {loading ? 'Please wait…' : mode === 'login' ? 'Sign In' : 'Create Account'}
                     </button>
                 </form>
             </div>
-        </main>
+        </div>
     )
 }
