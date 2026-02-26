@@ -1,8 +1,11 @@
 import { useState, useEffect } from 'react'
 import { Link } from 'react-router-dom'
-import type { Product } from '../lib/supabase'
+import type { Product, ProductImage } from '../lib/supabase'
 
-interface CartItem extends Product { qty: number }
+interface CartItem extends Product {
+    qty: number
+    product_images?: ProductImage[]
+}
 
 export default function Cart() {
     const [items, setItems] = useState<CartItem[]>([])
@@ -71,15 +74,16 @@ export default function Cart() {
                     <div>
                         {items.map((item) => (
                             <div className="cart-item" key={item.id}>
-                                <div className="cart-item-image" style={{
-                                    display: 'flex', alignItems: 'center',
-                                    justifyContent: 'center', fontSize: '2rem',
-                                    background: 'var(--bg-alt)',
-                                }}>
-                                    {item.image_url
-                                        ? <img src={item.image_url} alt={item.name} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
-                                        : '🌿'
-                                    }
+                                <div className="cart-item-image">
+                                    {(() => {
+                                        const src =
+                                            item.product_images?.find(i => i.is_primary)?.image_url
+                                            ?? item.product_images?.[0]?.image_url
+                                            ?? item.image_url
+                                        return src
+                                            ? <img src={src} alt={item.name} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                                            : <span style={{ fontSize: '2rem' }}>🌿</span>
+                                    })()}
                                 </div>
                                 <div className="cart-item-info">
                                     {item.category && <div className="cart-item-category">{item.category}</div>}
