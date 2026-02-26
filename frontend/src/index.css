@@ -967,3 +967,311 @@ button {
     grid-template-columns: 1fr;
   }
 }
+
+/* ─── Dual-image hover ─────────────────────────────────────────────────────── */
+.product-card-image--primary {
+  transition: opacity 0.45s ease, transform 0.6s ease;
+}
+
+.product-card-image--hover {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  opacity: 0;
+  transition: opacity 0.45s ease, transform 0.6s ease;
+}
+
+.product-card:hover .product-card-image--primary {
+  opacity: 0;
+  transform: scale(1.04);
+}
+
+.product-card:hover .product-card-image--hover {
+  opacity: 1;
+  transform: scale(1.04);
+}
+
+/* ─── Wishlist button ──────────────────────────────────────────────────────── */
+.product-card-wish {
+  position: absolute;
+  top: 0.9rem;
+  right: 0.9rem;
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  background: rgba(250, 248, 245, 0.85);
+  backdrop-filter: blur(4px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--ink-muted);
+  transition: all var(--ease);
+  z-index: 2;
+}
+
+.product-card-wish:hover,
+.product-card-wish.wished {
+  color: #b94040;
+  background: #fff;
+}
+
+/* ─── Colour swatches ──────────────────────────────────────────────────────── */
+.product-card-swatches {
+  display: flex;
+  gap: 5px;
+  margin-bottom: 0.55rem;
+}
+
+.product-card-swatch {
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  border: 1px solid rgba(0, 0, 0, 0.12);
+  display: inline-block;
+}
+
+/* ─── Available sizes text ─────────────────────────────────────────────────── */
+.product-card-sizes {
+  font-size: 0.65rem;
+  letter-spacing: 0.1em;
+  color: var(--ink-muted);
+}
+
+/* ─── Shop Page Header ─────────────────────────────────────────────────────── */
+.shop-page-header {
+  border-bottom: 1px solid var(--border);
+  padding-bottom: 2.5rem;
+  margin-bottom: 2rem;
+}
+
+/* ─── Shop Filters Bar ─────────────────────────────────────────────────────── */
+.shop-filters-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 0.75rem;
+  gap: 1rem;
+  flex-wrap: wrap;
+}
+
+.shop-category-tabs {
+  display: flex;
+  gap: 0;
+  flex-wrap: wrap;
+  border-bottom: 1px solid var(--border);
+  flex: 1;
+}
+
+.shop-cat-tab {
+  font-size: 0.68rem;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--ink-muted);
+  padding: 0.7rem 1.1rem;
+  border-bottom: 2px solid transparent;
+  margin-bottom: -1px;
+  transition: all var(--ease);
+  white-space: nowrap;
+}
+
+.shop-cat-tab:hover {
+  color: var(--ink);
+}
+
+.shop-cat-tab.active {
+  color: var(--ink);
+  border-bottom-color: var(--ink);
+}
+
+.shop-sort-select {
+  font-family: var(--font-sans);
+  font-size: 0.68rem;
+  letter-spacing: 0.1em;
+  color: var(--ink-mid);
+  border: 1px solid var(--border);
+  background: transparent;
+  padding: 0.55rem 1rem;
+  outline: none;
+  cursor: pointer;
+  transition: border-color var(--ease);
+  appearance: none;
+  -webkit-appearance: none;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6'%3E%3Cpath d='M0 0l5 6 5-6z' fill='%238a8a82'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 0.7rem center;
+  padding-right: 2rem;
+}
+
+.shop-sort-select:hover {
+  border-color: var(--ink);
+}
+
+.shop-count {
+  font-size: 0.72rem;
+  letter-spacing: 0.1em;
+  color: var(--ink-muted);
+  margin-bottom: 2rem;
+  text-transform: uppercase;
+}
+
+/* ─── Skeleton Loader ─────────────────────────────────────────────────────── */
+.shop-skeleton-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 1px;
+  background: var(--border);
+  border: 1px solid var(--border);
+}
+
+.product-card-skeleton {
+  background: var(--surface);
+}
+
+.skeleton-img {
+  aspect-ratio: 3/4;
+  background: linear-gradient(90deg, var(--bg-alt) 25%, #e8e4dd 50%, var(--bg-alt) 75%);
+  background-size: 200% 100%;
+  animation: shimmer 1.5s infinite;
+}
+
+.skeleton-body {
+  padding: 1rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.skeleton-line {
+  height: 12px;
+  border-radius: 2px;
+  background: linear-gradient(90deg, var(--bg-alt) 25%, #e8e4dd 50%, var(--bg-alt) 75%);
+  background-size: 200% 100%;
+  animation: shimmer 1.5s infinite;
+}
+
+.skeleton-line.short {
+  width: 40%;
+}
+
+.skeleton-line.mid {
+  width: 60%;
+}
+
+@keyframes shimmer {
+  0% {
+    background-position: 200% 0;
+  }
+
+  100% {
+    background-position: -200% 0;
+  }
+}
+
+/* ─── Editorial Triptych ───────────────────────────────────────────────────── */
+.editorial-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 1.5rem;
+}
+
+.editorial-card {
+  display: block;
+  position: relative;
+  overflow: hidden;
+  cursor: pointer;
+}
+
+.editorial-card-image-wrap {
+  aspect-ratio: 2/3;
+  overflow: hidden;
+}
+
+.editorial-card-image-wrap img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  transition: transform 0.7s ease;
+}
+
+.editorial-card:hover .editorial-card-image-wrap img {
+  transform: scale(1.04);
+}
+
+.editorial-card-body {
+  padding: 1.2rem 0 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+
+.editorial-tag {
+  font-size: 0.62rem;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: var(--sage);
+}
+
+.editorial-headline {
+  font-family: var(--font-serif);
+  font-size: 1.3rem;
+  font-weight: 300;
+  color: var(--ink);
+}
+
+.editorial-sub {
+  font-size: 0.82rem;
+  color: var(--ink-muted);
+  margin-bottom: 0.3rem;
+}
+
+.editorial-cta {
+  font-size: 0.68rem;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--ink);
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  position: relative;
+  width: fit-content;
+  padding-bottom: 1px;
+}
+
+.editorial-cta::after {
+  content: '';
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 100%;
+  height: 1px;
+  background: var(--ink);
+  transition: right var(--ease);
+}
+
+.editorial-card:hover .editorial-cta::after {
+  right: 0;
+}
+
+/* ─── Responsive additions ─────────────────────────────────────────────────── */
+@media (max-width: 900px) {
+  .editorial-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .shop-skeleton-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+
+@media (max-width: 640px) {
+  .shop-filters-bar {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+
+  .shop-category-tabs {
+    overflow-x: auto;
+  }
+}
