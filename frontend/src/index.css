@@ -1039,41 +1039,81 @@ button {
   color: var(--ink-muted);
 }
 
-/* ─── Shop Page Header ─────────────────────────────────────────────────────── */
-.shop-page-header {
-  border-bottom: 1px solid var(--border);
+/* ─── Shop Page ─────────────────────────────────────────────────────────────── */
+.shop-page {
+  padding-top: calc(var(--nav-h) + 4rem);
+  padding-bottom: 8rem;
+}
+
+/* Hero header — split two-column */
+.shop-hero {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 3rem;
   padding-bottom: 2.5rem;
-  margin-bottom: 2rem;
+  border-bottom: 1px solid var(--border);
+  margin-bottom: 0;
+}
+
+.shop-hero-left {
+  flex-shrink: 0;
+}
+
+.shop-hero-title {
+  font-family: var(--font-serif);
+  font-size: clamp(2.4rem, 5vw, 4rem);
+  font-weight: 300;
+  line-height: 1.05;
+  color: var(--ink);
+  margin: 0.5rem 0 0;
+}
+
+.shop-hero-desc {
+  font-size: 0.85rem;
+  color: var(--ink-muted);
+  line-height: 1.85;
+  max-width: 320px;
+  text-align: right;
+  padding-bottom: 0.25rem;
 }
 
 /* ─── Shop Filters Bar ─────────────────────────────────────────────────────── */
-.shop-filters-bar {
+.shop-toolbar {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  margin-bottom: 0.75rem;
-  gap: 1rem;
-  flex-wrap: wrap;
+  border-bottom: 1px solid var(--border);
+  margin-bottom: 3rem;
 }
 
 .shop-category-tabs {
   display: flex;
   gap: 0;
-  flex-wrap: wrap;
-  border-bottom: 1px solid var(--border);
-  flex: 1;
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+
+.shop-category-tabs::-webkit-scrollbar {
+  display: none;
 }
 
 .shop-cat-tab {
-  font-size: 0.68rem;
-  letter-spacing: 0.14em;
+  font-size: 0.66rem;
+  letter-spacing: 0.15em;
   text-transform: uppercase;
   color: var(--ink-muted);
-  padding: 0.7rem 1.1rem;
-  border-bottom: 2px solid transparent;
+  padding: 1rem 1.1rem;
+  border-bottom: 1.5px solid transparent;
   margin-bottom: -1px;
   transition: all var(--ease);
   white-space: nowrap;
+  background: none;
+  border-top: none;
+  border-left: none;
+  border-right: none;
+  cursor: pointer;
+  font-family: var(--font-sans);
 }
 
 .shop-cat-tab:hover {
@@ -1085,38 +1125,64 @@ button {
   border-bottom-color: var(--ink);
 }
 
+.shop-toolbar-right {
+  display: flex;
+  align-items: center;
+  gap: 1.5rem;
+  flex-shrink: 0;
+  padding-left: 1.5rem;
+}
+
+.shop-count {
+  font-size: 0.65rem;
+  letter-spacing: 0.12em;
+  color: var(--ink-muted);
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+
 .shop-sort-select {
   font-family: var(--font-sans);
-  font-size: 0.68rem;
+  font-size: 0.66rem;
   letter-spacing: 0.1em;
+  text-transform: uppercase;
   color: var(--ink-mid);
-  border: 1px solid var(--border);
+  border: none;
+  border-bottom: 1px solid var(--border);
   background: transparent;
-  padding: 0.55rem 1rem;
+  padding: 0.25rem 1.5rem 0.25rem 0;
   outline: none;
   cursor: pointer;
   transition: border-color var(--ease);
   appearance: none;
   -webkit-appearance: none;
-  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6'%3E%3Cpath d='M0 0l5 6 5-6z' fill='%238a8a82'/%3E%3C/svg%3E");
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='8' height='5'%3E%3Cpath d='M0 0l4 5 4-5z' fill='%238a8a82'/%3E%3C/svg%3E");
   background-repeat: no-repeat;
-  background-position: right 0.7rem center;
-  padding-right: 2rem;
+  background-position: right 0 center;
 }
 
 .shop-sort-select:hover {
-  border-color: var(--ink);
+  border-bottom-color: var(--ink);
 }
 
-.shop-count {
-  font-size: 0.72rem;
-  letter-spacing: 0.1em;
+
+/* ─── Shop Empty / Error state ─────────────────────────────────────────────── */
+.shop-empty {
+  text-align: center;
+  padding: 6rem 0;
   color: var(--ink-muted);
-  margin-bottom: 2rem;
-  text-transform: uppercase;
 }
 
-/* ─── Skeleton Loader ─────────────────────────────────────────────────────── */
+.shop-empty-icon {
+  font-size: 2.5rem;
+  margin-bottom: 1.5rem;
+  opacity: 0.2;
+}
+
+.shop-empty p {
+  font-size: 0.88rem;
+}
+
 .shop-skeleton-grid {
   display: grid;
   grid-template-columns: repeat(3, 1fr);

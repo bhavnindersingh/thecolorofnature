@@ -1,7 +1,7 @@
 import { useState, useMemo } from 'react'
 import { Link } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
-import { Heart } from 'lucide-react'
+import { Heart, ShoppingBag } from 'lucide-react'
 import { getProducts, addToWishlist, type Product } from '../lib/supabase'
 
 const CATEGORIES = ['All', 'Dresses', 'Blazers', 'Knitwear', 'Tops', 'Trousers', 'Skirts', 'Sets', 'Outerwear', 'Denim']
@@ -14,82 +14,105 @@ function ProductCard({ product }: { product: Product }) {
     const secondImage = product.product_images?.[1]
     const imageSrc = primaryImage?.image_url ?? product.image_url
 
-    const addToCart = () => {
+    const addToCart = (e: React.MouseEvent) => {
+        e.preventDefault()
+        e.stopPropagation()
         setAdding(true)
         const cart: Product[] = JSON.parse(localStorage.getItem('cart') || '[]')
         cart.push(product)
         localStorage.setItem('cart', JSON.stringify(cart))
         window.dispatchEvent(new Event('cart-updated'))
-        setTimeout(() => setAdding(false), 800)
+        setTimeout(() => setAdding(false), 1200)
     }
 
     const toggleWish = async (e: React.MouseEvent) => {
+        e.preventDefault()
         e.stopPropagation()
         setWished(w => !w)
         try { await addToWishlist(product.id) } catch { /* not authenticated */ }
     }
 
+    const sizes = product.product_variants
+        ? [...new Set(product.product_variants.filter(v => v.stock_quantity > 0).map(v => v.size))].filter(Boolean)
+        : []
+
+    const colorSwatches = product.product_variants
+        ? [...new Map(
+            product.product_variants.filter(v => v.color_hex).map(v => [v.color, v])
+        ).values()].slice(0, 4)
+        : []
+
     return (
-        <div className="product-card">
-            <Link to={`/product/${product.id}`} className="product-card-link">
-                <div className="product-card-image-wrap">
-                    {imageSrc ? (
-                        <>
-                            <img src={imageSrc} alt={product.name} className="product-card-image product-card-image--primary" />
-                            {secondImage && (
-                                <img src={secondImage.image_url} alt={product.name} className="product-card-image product-card-image--hover" />
-                            )}
-                        </>
-                    ) : (
-                        <div className="product-card-placeholder">🌿</div>
-                    )}
-
-                    {/* Wishlist */}
-                    <button className={`product-card-wish${wished ? ' wished' : ''}`} onClick={toggleWish} aria-label="Add to wishlist">
-                        <Heart size={15} strokeWidth={1.5} fill={wished ? 'currentColor' : 'none'} />
-                    </button>
-                </div>
-            </Link>
-
-            <div className="product-card-body">
-                <Link to={`/product/${product.id}`} className="product-card-link">
-                    {product.category && <div className="product-card-category">{product.category}</div>}
-                    <div className="product-card-name">{product.name}</div>
-                </Link>
-
-                {/* Colour swatches */}
-                {product.product_variants && product.product_variants.length > 0 && (
-                    <div className="product-card-swatches">
-                        {[...new Map(
-                            product.product_variants
-                                .filter(v => v.color_hex)
-                                .map(v => [v.color, v])
-                        ).values()].slice(0, 5).map(v => (
-                            <span
-                                key={v.color}
-                                className="product-card-swatch"
-                                style={{ background: v.color_hex! }}
-                                title={v.color ?? ''}
+        <Link to={`/product/${product.id}`} className="product-card">
+            {/* ── Image ────────────────────────────────────────────────── */}
+            <div className="product-card-image-wrap">
+                {imageSrc ? (
+                    <>
+                        <img
+                            src={imageSrc}
+                            alt={product.name}
+                            className={`product-card-image${secondImage ? ' product-card-image--primary' : ''}`}
+                        />
+                        {secondImage && (
+                            <img
+                                src={secondImage.image_url}
+                                alt={product.name}
+                                className="product-card-image product-card-image--hover"
                             />
-                        ))}
-                    </div>
+                        )}
+                    </>
+                ) : (
+                    <div className="product-card-placeholder">🌿</div>
                 )}
 
-                <div className="product-card-footer">
-                    <Link to={`/product/${product.id}`} className="product-card-price" style={{ fontFamily: 'var(--font-serif)', fontSize: '1rem', color: 'var(--ink)' }}>
-                        ₹{product.price.toLocaleString('en-IN')}
-                    </Link>
-                    {product.product_variants && product.product_variants.length > 0 && (
-                        <span className="product-card-sizes">
-                            {[...new Set(product.product_variants.filter(v => v.stock_quantity > 0).map(v => v.size))].join(' · ')}
+                {/* Wishlist pill */}
+                <button
+                    className={`product-card-wish${wished ? ' wished' : ''}`}
+                    onClick={toggleWish}
+                    aria-label="Wishlist"
+                >
+                    <Heart size={14} strokeWidth={1.5} fill={wished ? 'currentColor' : 'none'} />
+                </button>
+
+                {/* Add-to-cart overlay — appears on hover */}
+                <div className="product-card-overlay">
+                    <button className="product-card-add-btn" onClick={addToCart}>
+                        {adding
+                            ? <><span>✓</span> Added</>
+                            : <><ShoppingBag size={13} strokeWidth={1.5} /> Add to Cart</>
+                        }
+                    </button>
+                </div>
+            </div>
+
+            {/* ── Info ─────────────────────────────────────────────────── */}
+            <div className="product-card-body">
+                <div className="product-card-meta-row">
+                    {product.category && <span className="product-card-category">{product.category}</span>}
+                    {colorSwatches.length > 0 && (
+                        <span className="product-card-swatches">
+                            {colorSwatches.map(v => (
+                                <span
+                                    key={v.color}
+                                    className="product-card-swatch"
+                                    style={{ background: v.color_hex! }}
+                                    title={v.color ?? ''}
+                                />
+                            ))}
                         </span>
                     )}
                 </div>
-                <button className="product-card-add-btn" style={{ marginTop: '0.75rem', width: '100%', display: 'block' }} onClick={addToCart}>
-                    {adding ? '✓ Added' : '+ Add to Cart'}
-                </button>
+
+                <div className="product-card-name">{product.name}</div>
+
+                <div className="product-card-footer">
+                    <span className="product-card-price">₹{product.price.toLocaleString('en-IN')}</span>
+                    {sizes.length > 0 && (
+                        <span className="product-card-sizes">{sizes.join(' · ')}</span>
+                    )}
+                </div>
             </div>
-        </div>
+        </Link>
     )
 }
 
@@ -121,23 +144,24 @@ export default function Shop() {
     }, [data])
 
     return (
-        <main style={{ paddingTop: 'calc(72px + 3rem)', paddingBottom: '7rem' }}>
+        <main className="shop-page">
             <div className="container">
 
-                {/* ── Page Header ─────────────────────────────────────────── */}
-                <div className="shop-page-header">
-                    <div className="section-header">
+                {/* ── Page Hero ────────────────────────────────────────── */}
+                <div className="shop-hero">
+                    <div className="shop-hero-left">
                         <span className="section-tag">The Collection</span>
-                        <h1 className="section-title"><em>Nature's Finest</em></h1>
-                        <p className="section-desc">
-                            Curated pieces crafted from natural fibres — thoughtfully designed, effortlessly worn.
-                        </p>
+                        <h1 className="shop-hero-title"><em>Nature's Finest</em></h1>
                     </div>
+                    <p className="shop-hero-desc">
+                        Curated pieces in linen, silk, cashmere and merino —<br />
+                        thoughtfully made, effortlessly worn.
+                    </p>
                 </div>
 
-                {/* ── Filters Bar ─────────────────────────────────────────── */}
-                <div className="shop-filters-bar">
-                    <div className="shop-category-tabs">
+                {/* ── Filters + Sort ───────────────────────────────────── */}
+                <div className="shop-toolbar">
+                    <nav className="shop-category-tabs" aria-label="Product categories">
                         {availableCategories.map(cat => (
                             <button
                                 key={cat}
@@ -147,31 +171,29 @@ export default function Shop() {
                                 {cat}
                             </button>
                         ))}
-                    </div>
+                    </nav>
 
-                    <div className="shop-sort">
+                    <div className="shop-toolbar-right">
+                        {!isLoading && !error && data && (
+                            <span className="shop-count">
+                                {filtered.length} {filtered.length === 1 ? 'piece' : 'pieces'}
+                            </span>
+                        )}
                         <select
                             value={sortBy}
                             onChange={e => setSortBy(e.target.value as typeof sortBy)}
                             className="shop-sort-select"
                         >
-                            <option value="default">Sort: Featured</option>
-                            <option value="price-asc">Price: Low to High</option>
-                            <option value="price-desc">Price: High to Low</option>
+                            <option value="default">Featured</option>
+                            <option value="price-asc">Price ↑</option>
+                            <option value="price-desc">Price ↓</option>
                         </select>
                     </div>
                 </div>
 
-                {/* ── Count ───────────────────────────────────────────────── */}
-                {!isLoading && !error && data && (
-                    <div className="shop-count">
-                        {filtered.length} {filtered.length === 1 ? 'piece' : 'pieces'}
-                    </div>
-                )}
-
-                {/* ── States ──────────────────────────────────────────────── */}
+                {/* ── Loading skeletons ────────────────────────────────── */}
                 {isLoading && (
-                    <div className="shop-skeleton-grid">
+                    <div className="product-grid">
                         {Array.from({ length: 6 }).map((_, i) => (
                             <div key={i} className="product-card-skeleton">
                                 <div className="skeleton-img" />
@@ -185,25 +207,26 @@ export default function Shop() {
                     </div>
                 )}
 
+                {/* ── Error ───────────────────────────────────────────── */}
                 {error && (
-                    <div style={{ textAlign: 'center', padding: '5rem 0', color: 'var(--ink-muted)' }}>
-                        <p>Could not load products. Please try again.</p>
-                        <p style={{ fontSize: '0.78rem', marginTop: '0.5rem' }}>{(error as Error).message}</p>
+                    <div className="shop-empty">
+                        <p>Could not load products.</p>
+                        <p style={{ fontSize: '0.78rem', marginTop: '0.4rem' }}>{(error as Error).message}</p>
                     </div>
                 )}
 
+                {/* ── Empty ───────────────────────────────────────────── */}
                 {!isLoading && !error && filtered.length === 0 && (
-                    <div style={{ textAlign: 'center', padding: '5rem 0', color: 'var(--ink-muted)' }}>
-                        <div style={{ fontSize: '3rem', marginBottom: '1.5rem', opacity: 0.25 }}>🌱</div>
-                        <p style={{ fontSize: '0.9rem' }}>
-                            {data?.length === 0
-                                ? 'No products yet — they will appear once synced from Odoo.'
-                                : `No products in "${activeCategory}".`}
+                    <div className="shop-empty">
+                        <div className="shop-empty-icon">🌱</div>
+                        <p>{data?.length === 0
+                            ? 'No products yet — they will appear once synced from Odoo.'
+                            : `Nothing in "${activeCategory}" yet.`}
                         </p>
                     </div>
                 )}
 
-                {/* ── Product Grid ─────────────────────────────────────────── */}
+                {/* ── Product Grid ─────────────────────────────────────── */}
                 {filtered.length > 0 && (
                     <div className="product-grid">
                         {filtered.map(p => <ProductCard key={p.id} product={p} />)}
