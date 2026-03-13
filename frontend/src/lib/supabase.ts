@@ -88,15 +88,21 @@ export interface Order {
     user_id: string
     status: OrderStatus
     total_amount: number
-    shipping_address: Record<string, string> | null   // Legacy JSONB
-    shipping_address_id: string | null                // Structured FK
+    shipping_address: Record<string, string> | null
+    shipping_address_id: string | null
     payment_intent_id: string | null
     odoo_order_id: number | null
+    tracking_number: string | null
+    carrier: string | null
+    estimated_delivery: string | null
+    odoo_picking_name: string | null
     created_at: string
     updated_at: string
     // Joined fields
     order_items?: OrderItem[]
     shipping_address_data?: Address
+    order_status_history?: OrderStatusHistory[]
+    return_requests?: ReturnRequest[]
 }
 
 export interface OrderItem {
@@ -132,6 +138,31 @@ export interface ProductReview {
     profile?: Pick<Profile, 'full_name' | 'first_name' | 'last_name' | 'avatar_url'>
 }
 
+export interface OrderStatusHistory {
+    id: number
+    order_id: string
+    status: OrderStatus
+    note: string | null
+    changed_by: string
+    created_at: string
+}
+
+export type ReturnStatus = 'pending' | 'approved' | 'rejected' | 'completed'
+
+export interface ReturnRequest {
+    id: string
+    order_id: string
+    user_id: string
+    reason: string
+    status: ReturnStatus
+    odoo_return_id: number | null
+    admin_note: string | null
+    created_at: string
+    updated_at: string
+    // Joined
+    order?: Order
+}
+
 // =============================================================================
 // PRODUCTS
 // =============================================================================
@@ -164,12 +195,28 @@ export const getProductsByCategory = (category: string) =>
 // ORDERS
 // =============================================================================
 
-/** Fetch the current user's orders with items and products */
+/** Fetch the current user's orders with items, products, and status history */
 export const getMyOrders = () =>
     supabase
         .from('orders')
-        .select('*, order_items(*, product:products(*))')
+        .select('*, order_items(*, product:products(*, product_images(*))), order_status_history(*), return_requests(*)')
         .order('created_at', { ascending: false })
+
+/** Fetch a single order with full details */
+export const getOrderById = (orderId: string) =>
+    supabase
+        .from('orders')
+        .select('*, order_items(*, product:products(*, product_images(*))), order_status_history(*), return_requests(*)')
+        .eq('id', orderId)
+        .single()
+
+/** Fetch order status timeline */
+export const getOrderTimeline = (orderId: string) =>
+    supabase
+        .from('order_status_history')
+        .select('*')
+        .eq('order_id', orderId)
+        .order('created_at', { ascending: true })
 
 /** Create a new order, then insert its items */
 export const createOrder = async (
@@ -258,6 +305,55 @@ export const removeFromWishlist = (productId: number) =>
     supabase.from('wishlist_items').delete().eq('product_id', productId)
 
 // =============================================================================
+// RETURNS
+// =============================================================================
+
+/** Fetch the current user's return requests */
+export const getMyReturns = () =>
+    supabase
+        .from('return_requests')
+        .select('*, order:orders(id, status, total_amount, created_at, odoo_order_id)')
+        .order('created_at', { ascending: false })
+
+/** Create a return request */
+export const createReturnRequest = async (orderId: string, reason: string) => {
+    const { data: { user } } = await supabase.auth.getUser()
+    if (!user) throw new Error('Not authenticated')
+    return supabase
+        .from('return_requests')
+        .insert({ order_id: orderId, user_id: user.id, reason })
+        .select()
+        .single()
+}
+
+// =============================================================================
+// PROFILE
+// =============================================================================
+
+/** Fetch the current user's profile */
+export const getMyProfile = async () => {
+    const { data: { user } } = await supabase.auth.getUser()
+    if (!user) throw new Error('Not authenticated')
+    return supabase
+        .from('profiles')
+        .select('*')
+        .eq('id', user.id)
+        .single()
+}
+
+/** Update the current user's profile */
+export const updateMyProfile = async (updates: { full_name?: string; first_name?: string; last_name?: string; phone?: string }) => {
+    const { data: { user } } = await supabase.auth.getUser()
+    if (!user) throw new Error('Not authenticated')
+    return supabase
+        .from('profiles')
+        .update(updates)
+        .eq('id', user.id)
+        .select()
+        .single()
+}
+
+// =============================================================================
 // REVIEWS
 // =============================================================================
 
@@ -284,10 +380,44 @@ export const submitReview = async (productId: number, rating: number, title: str
 // =============================================================================
 
 /** Trigger the Edge Function to sync an order to Odoo */
-export const syncOrderToOdoo = (orderId: string, customerEmail: string, items: unknown[]) =>
+export const syncOrderToOdoo = (
+    orderId: string,
+    customerEmail: string,
+    customerName: string,
+    items: Array<{ odoo_variant_id: number; quantity: number; price: number }>,
+) =>
     supabase.functions.invoke('sync-to-odoo', {
         body: {
             action: 'sync_order',
-            payload: { supabase_order_id: orderId, customer_email: customerEmail, items },
+            payload: {
+                supabase_order_id: orderId,
+                customer_email: customerEmail,
+                customer_name: customerName,
+                items,
+            },
         },
+    })
+
+/** Cancel an order in Odoo (before shipment) */
+export const cancelOrderInOdoo = (odooOrderId: number) =>
+    supabase.functions.invoke('sync-to-odoo', {
+        body: {
+            action: 'cancel_order',
+            payload: { odoo_order_id: odooOrderId },
+        },
+    })
+
+/** Request a return for a shipped order in Odoo */
+export const returnOrderInOdoo = (odooOrderId: number) =>
+    supabase.functions.invoke('sync-to-odoo', {
+        body: {
+            action: 'return_order',
+            payload: { odoo_order_id: odooOrderId },
+        },
+    })
+
+/** Trigger product sync from Odoo → Supabase */
+export const triggerProductSync = () =>
+    supabase.functions.invoke('sync-products', {
+        body: {},
     })
