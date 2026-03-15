@@ -279,7 +279,7 @@ export const setDefaultAddress = async (addressId: string) => {
 }
 
 /** Delete an address */
-export const deleteAddress = (addressId: string) =>
+export const deleteAddress = async (addressId: string) =>
     supabase.from('addresses').delete().eq('id', addressId)
 
 // =============================================================================
