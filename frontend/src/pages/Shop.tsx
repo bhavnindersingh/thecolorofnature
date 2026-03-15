@@ -1,10 +1,8 @@
-import { useState, useMemo } from 'react'
+import { useState, useMemo, useRef, useCallback } from 'react'
 import { Link } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
 import { Heart, ShoppingBag } from 'lucide-react'
 import { getProducts, addToWishlist, type Product } from '../lib/supabase'
-
-const CATEGORIES = ['All', 'Dresses', 'Blazers', 'Knitwear', 'Tops', 'Trousers', 'Skirts', 'Sets', 'Outerwear', 'Denim']
 
 function ProductCard({ product }: { product: Product }) {
     const [wished, setWished] = useState(false)
@@ -118,7 +116,15 @@ function ProductCard({ product }: { product: Product }) {
 
 export default function Shop() {
     const [activeCategory, setActiveCategory] = useState('All')
-    const [sortBy, setSortBy] = useState<'default' | 'price-asc' | 'price-desc'>('default')
+    const [sortBy, setSortBy] = useState<'assorted' | 'price-asc' | 'price-desc'>('assorted')
+    const navRef = useRef<HTMLElement>(null)
+
+    const handleCategoryClick = useCallback((cat: string, btn: HTMLButtonElement | null) => {
+        setActiveCategory(cat)
+        if (btn) {
+            btn.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'center' })
+        }
+    }, [])
 
     const { data, isLoading, error } = useQuery({
         queryKey: ['products'],
@@ -132,15 +138,27 @@ export default function Shop() {
     const filtered = useMemo(() => {
         if (!data) return []
         let list = activeCategory === 'All' ? data : data.filter(p => p.category === activeCategory)
-        if (sortBy === 'price-asc') list = [...list].sort((a, b) => a.price - b.price)
-        if (sortBy === 'price-desc') list = [...list].sort((a, b) => b.price - a.price)
+
+        if (sortBy === 'assorted') {
+            // Pseudo-random seeded sort based on product ID so it stays consistent but assorted
+            list = [...list].sort((a, b) => {
+                const aHash = (a.id * 137) % 100
+                const bHash = (b.id * 137) % 100
+                return aHash - bHash
+            })
+        } else if (sortBy === 'price-asc') {
+            list = [...list].sort((a, b) => a.price - b.price)
+        } else if (sortBy === 'price-desc') {
+            list = [...list].sort((a, b) => b.price - a.price)
+        }
         return list
     }, [data, activeCategory, sortBy])
 
     const availableCategories = useMemo(() => {
-        if (!data) return CATEGORIES
-        const cats = new Set(data.map(p => p.category).filter(Boolean))
-        return CATEGORIES.filter(c => c === 'All' || cats.has(c))
+        if (!data) return ['All']
+        const cats = new Set(data.map(p => p.category).filter((c): c is string => Boolean(c)))
+        const sortedCats = Array.from(cats).sort()
+        return ['All', ...sortedCats]
     }, [data])
 
     return (
@@ -160,35 +178,42 @@ export default function Shop() {
                 </div>
 
                 {/* ── Filters + Sort ───────────────────────────────────── */}
-                <div className="shop-toolbar">
-                    <nav className="shop-category-tabs" aria-label="Product categories">
+                <div className="shop-controls">
+                    {!isLoading && !error && data ? (
+                        <span className="shop-count">
+                            {filtered.length} {filtered.length === 1 ? 'piece' : 'pieces'}
+                        </span>
+                    ) : (
+                        <span className="shop-count" style={{ opacity: 0 }}>0 pieces</span>
+                    )}
+
+                    <div className="shop-controls-right">
+                        <select
+                            value={sortBy}
+                            onChange={e => setSortBy(e.target.value as typeof sortBy)}
+                            className="shop-sort-select"
+                            aria-label="Sort products"
+                        >
+                            <option value="assorted">Assorted</option>
+                            <option value="price-asc">Price ↑</option>
+                            <option value="price-desc">Price ↓</option>
+                        </select>
+                    </div>
+                </div>
+
+                <div className="shop-category-tabs-wrapper">
+                    <nav ref={navRef} className="shop-category-tabs" aria-label="Product categories">
                         {availableCategories.map(cat => (
                             <button
                                 key={cat}
+                                ref={el => { if (activeCategory === cat && el) el.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'center' }) }}
                                 className={`shop-cat-tab${activeCategory === cat ? ' active' : ''}`}
-                                onClick={() => setActiveCategory(cat)}
+                                onClick={e => handleCategoryClick(cat, e.currentTarget)}
                             >
                                 {cat}
                             </button>
                         ))}
                     </nav>
-
-                    <div className="shop-toolbar-right">
-                        {!isLoading && !error && data && (
-                            <span className="shop-count">
-                                {filtered.length} {filtered.length === 1 ? 'piece' : 'pieces'}
-                            </span>
-                        )}
-                        <select
-                            value={sortBy}
-                            onChange={e => setSortBy(e.target.value as typeof sortBy)}
-                            className="shop-sort-select"
-                        >
-                            <option value="default">Featured</option>
-                            <option value="price-asc">Price ↑</option>
-                            <option value="price-desc">Price ↓</option>
-                        </select>
-                    </div>
                 </div>
 
                 {/* ── Loading skeletons ────────────────────────────────── */}

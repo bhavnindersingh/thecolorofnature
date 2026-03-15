@@ -122,9 +122,9 @@ export default function Cart() {
                             <span>Total</span>
                             <span>₹{total.toFixed(2)}</span>
                         </div>
-                        <button className="btn btn-primary" style={{ width: '100%', justifyContent: 'center', marginTop: '1.5rem' }}>
+                        <Link to="/checkout" className="btn btn-primary" style={{ width: '100%', justifyContent: 'center', marginTop: '1.5rem' }}>
                             Checkout
-                        </button>
+                        </Link>
                         <Link to="/shop" className="btn btn-ghost" style={{ marginTop: '1rem', justifyContent: 'center', display: 'flex' }}>
                             Continue Shopping
                         </Link>

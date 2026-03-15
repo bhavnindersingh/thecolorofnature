@@ -1,6 +1,7 @@
 import { Link, useLocation } from 'react-router-dom'
 import { ShoppingBag, User } from 'lucide-react'
 import { useEffect, useState, useCallback } from 'react'
+import { useAuth } from '../contexts/AuthContext'
 
 function getCartCount(): number {
     try {
@@ -14,6 +15,11 @@ export default function Navbar() {
     const { pathname } = useLocation()
     const [scrolled, setScrolled] = useState(false)
     const [cartCount, setCartCount] = useState(getCartCount)
+    const { user } = useAuth()
+
+    const displayName = user
+        ? (user.user_metadata?.full_name?.split(' ')[0] ?? user.email?.split('@')[0] ?? 'Account')
+        : null
 
     // Recount whenever cart changes
     const refreshCount = useCallback(() => setCartCount(getCartCount()), [])
@@ -51,8 +57,15 @@ export default function Navbar() {
                             <span className="navbar-cart-badge">{cartCount}</span>
                         )}
                     </Link>
-                    <Link to="/account" aria-label="Account">
-                        <User size={16} strokeWidth={1.5} /> Account
+                    <Link to="/account" aria-label="Account" className="navbar-account-link">
+                        {user ? (
+                            <>
+                                <span className="navbar-user-dot" aria-hidden="true" />
+                                {displayName}
+                            </>
+                        ) : (
+                            <><User size={16} strokeWidth={1.5} /> Sign In</>
+                        )}
                     </Link>
                 </div>
             </div>

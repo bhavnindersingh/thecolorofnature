@@ -1,29 +1,35 @@
 import { BrowserRouter, Routes, Route } from 'react-router-dom'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
+import { AuthProvider } from './contexts/AuthContext'
 import Navbar from './components/Navbar'
 import Home from './pages/Home'
 import Shop from './pages/Shop'
 import Cart from './pages/Cart'
 import Account from './pages/Account'
 import ProductDetail from './pages/ProductDetail'
+import Checkout from './pages/Checkout'
+import ResetPassword from './pages/ResetPassword'
 import './index.css'
 
 const queryClient = new QueryClient()
 
 export default function App() {
   return (
-    <QueryClientProvider client={queryClient}>
-      <BrowserRouter>
-        <Navbar />
-        <Routes>
-          <Route path="/" element={<Home />} />
-          <Route path="/shop" element={<Shop />} />
-          <Route path="/product/:id" element={<ProductDetail />} />
-          <Route path="/cart" element={<Cart />} />
-          <Route path="/account" element={<Account />} />
-        </Routes>
-      </BrowserRouter>
-    </QueryClientProvider>
+    <AuthProvider>
+      <QueryClientProvider client={queryClient}>
+        <BrowserRouter>
+          <Navbar />
+          <Routes>
+            <Route path="/" element={<Home />} />
+            <Route path="/shop" element={<Shop />} />
+            <Route path="/product/:id" element={<ProductDetail />} />
+            <Route path="/cart" element={<Cart />} />
+            <Route path="/account" element={<Account />} />
+            <Route path="/checkout" element={<Checkout />} />
+            <Route path="/reset-password" element={<ResetPassword />} />
+          </Routes>
+        </BrowserRouter>
+      </QueryClientProvider>
+    </AuthProvider>
   )
 }
-
