@@ -1,0 +1,17 @@
+# Supabase Project (Frontend)
+VITE_SUPABASE_URL=https://sqrfdszyyvpvolnngwtc.supabase.co
+VITE_SUPABASE_ANON_KEY=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InNxcmZkc3p5eXZwdm9sbm5nd3RjIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzIwNTI0MjMsImV4cCI6MjA4NzYyODQyM30.yncqOJzjoMzVWx2LkMpLjgmdSbmZ7PumsUDSqjueTgI
+
+# Odoo Credentials (Backend - Edge Function secrets)
+ODOO_URL=http://colnature.synology.me:8069
+ODOO_DB=00_TCON_PRODUCTION
+ODOO_USERNAME=bhavnindersingh@gmail.com
+ODOO_API_KEY=55eea0b0abc49bff9cf24476b00122560bb599ca
+
+# Odoo Warehouse Config
+ODOO_WEB_WAREHOUSE_ID=6
+ODOO_WEB_LOCATION_ID=74
+
+# Supabase Admin Config (Backend - Edge Function secrets)
+SUPABASE_URL=https://sqrfdszyyvpvolnngwtc.supabase.co
+SUPABASE_SERVICE_ROLE_KEY=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InNxcmZkc3p5eXZwdm9sbm5nd3RjIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc3MjA1MjQyMywiZXhwIjoyMDg3NjI4NDIzfQ.69hjqVBIGNOzOKtTDqAIsRf5pjHyGLGzf2JJuNzkoCQ

@@ -75,31 +75,48 @@ export default function Home() {
         <main>
             {/* ── Hero ─────────────────────────────────────────────────── */}
             <section className="hero">
-                <div className="hero-content">
-                    <span className="hero-eyebrow">Pure · Natural · Powerful</span>
-                    <h1 className="hero-title">
-                        Beauty born from<br /><em>the Colors of Nature</em>
-                    </h1>
-                    <p className="hero-subtitle">
-                        Curated clothing in natural fibres — linen, silk, cashmere, merino.
-                        Designed for women who choose quality, simplicity, and the earth.
-                    </p>
-                    <div className="hero-cta">
-                        <Link to="/shop" className="btn btn-primary">
-                            Shop Now <ArrowRight size={14} strokeWidth={1.5} />
-                        </Link>
-                        <Link to="/shop" className="btn btn-ghost">
-                            Explore Collection
-                        </Link>
-                    </div>
-                </div>
+                <video
+                    autoPlay
+                    loop
+                    muted
+                    playsInline
+                    className="hero-video-bg"
+                    src=""
+                />
+            </section>
 
-                <div className="hero-image-col">
-                    <img
-                        src="https://images.unsplash.com/photo-1515372039744-b8f02a3ae446?w=1200&auto=format&fit=crop"
-                        alt="Woman in flowing ivory linen dress"
-                        style={{ width: '100%', height: '100%', objectFit: 'cover' }}
-                    />
+            <section className="section" style={{ textAlign: 'center', paddingTop: '4rem', paddingBottom: '4rem' }}>
+                <div className="container">
+                    <h2 className="section-title" style={{ fontSize: 'clamp(2rem, 4vw, 3rem)', marginBottom: '1.5rem', maxWidth: '800px', margin: '0 auto' }}>
+                        Natural dyes are alive. They deepen in character over time.
+                    </h2>
+                    <p className="section-desc" style={{ maxWidth: '600px', margin: '1.5rem auto 3rem', fontSize: '1rem' }}>
+                        Free from harsh chemicals, our dyeing processes respect the pace of living colour — unhurried, unforced, and wholly natural.
+                    </p>
+
+                    <div className="gallery-grid">
+                        <div className="gallery-item-1">
+                            <img src="https://images.unsplash.com/photo-1588698942203-0ec57ab478af?q=80&w=2670&auto=format&fit=crop" alt="Woman holding blue fabric" />
+                        </div>
+                        <div className="gallery-item-2">
+                            <img src="https://images.unsplash.com/photo-1544265408-0118fb442f2b?q=80&w=2670&auto=format&fit=crop" alt="Drying blue yarn on bamboo racks" />
+                        </div>
+                        <div className="gallery-item-3">
+                            <img src="https://images.unsplash.com/photo-1563605658092-127e9cbdf3cb?q=80&w=2670&auto=format&fit=crop" alt="People walking with fabric" />
+                            <div className="gallery-text-overlay">
+                                <h3>Fabric that carries the process</h3>
+                                <Link to="/process" className="gallery-link">Explore more</Link>
+                            </div>
+                        </div>
+                        <div className="gallery-item-4">
+                            <img src="https://images.unsplash.com/photo-1517445722055-08e7ff153282?q=80&w=2670&auto=format&fit=crop" alt="Artisan dyeing fabric" />
+                            <div className="gallery-button-overlay">
+                                <Link to="/shop" className="btn btn-primary" style={{ background: 'var(--surface)', color: 'var(--ink)' }}>
+                                    SHOP <ArrowRight size={14} strokeWidth={1.5} />
+                                </Link>
+                            </div>
+                        </div>
+                    </div>
                 </div>
             </section>
 
@@ -113,6 +130,100 @@ export default function Home() {
                     </div>
                 ))}
             </div>
+
+            {/* ── Sticky Scroll Section ──────────────────────────────────── */}
+            <div className="sticky-wrapper">
+                {/* LEFT: Sticky image that stays fixed while you scroll */}
+                <div className="sticky-component">
+                    <img 
+                        src="https://cdn.prod.website-files.com/6996b537e802c970c8d73448/6996f547318d9661cd2d682c_CON26.jpg"
+                        loading="lazy"
+                        sizes="(max-width: 1635px) 100vw, 1635px"
+                        srcSet="https://cdn.prod.website-files.com/6996b537e802c970c8d73448/6996f547318d9661cd2d682c_CON26-p-500.jpg 500w,
+                                https://cdn.prod.website-files.com/6996b537e802c970c8d73448/6996f547318d9661cd2d682c_CON26-p-800.jpg 800w,
+                                https://cdn.prod.website-files.com/6996b537e802c970c8d73448/6996f547318d9661cd2d682c_CON26-p-1080.jpg 1080w,
+                                https://cdn.prod.website-files.com/6996b537e802c970c8d73448/6996f547318d9661cd2d682c_CON26-p-1600.jpg 1600w,
+                                https://cdn.prod.website-files.com/6996b537e802c970c8d73448/6996f547318d9661cd2d682c_CON26.jpg 1635w"
+                        alt=""
+                    />
+                </div>
+
+                {/* RIGHT: Scrollable content */}
+                <div className="sticky-content">
+                    {/* Big image 1 */}
+                    <div className="sticky-big-image">
+                        <img 
+                            src="https://cdn.prod.website-files.com/6996b537e802c970c8d73448/6996f54a90fba6a788f61968_CON39.jpg"
+                            loading="lazy"
+                            sizes="(max-width: 1635px) 100vw, 1635px"
+                            srcSet="https://cdn.prod.website-files.com/6996b537e802c970c8d73448/6996f54a90fba6a788f61968_CON39-p-500.jpg 500w,
+                                    https://cdn.prod.website-files.com/6996b537e802c970c8d73448/6996f54a90fba6a788f61968_CON39-p-800.jpg 800w,
+                                    https://cdn.prod.website-files.com/6996b537e802c970c8d73448/6996f54a90fba6a788f61968_CON39-p-1080.jpg 1080w,
+                                    https://cdn.prod.website-files.com/6996b537e802c970c8d73448/6996f54a90fba6a788f61968_CON39-p-1600.jpg 1600w,
+                                    https://cdn.prod.website-files.com/6996b537e802c970c8d73448/6996f54a90fba6a788f61968_CON39.jpg 1635w"
+                            alt=""
+                        />
+                    </div>
+
+                    {/* Text block 1 */}
+                    <div className="sticky-text">
+                        <div className="text-weight-medium caps regular-vw-small">A Process, Not a Shortcut</div>
+                        <div className="content max-width-34vw">
+                            <div className="heading-vw">Where Indigo Takes Form</div>
+                            <div className="sticky-paragraph">
+                                <div className="regular-vw">Leaves are tended, vats are listened to, and colour is allowed to arrive in its own time. Nothing is rushed. Each shade deepens through repetition, guided by instinct, memory, and a quiet understanding between hand, water, and plant.</div>
+                                <div className="regular-vw">Dye created through patience and presence. What emerges is not just colour, but depth formed through time, care, and attention.</div>
+                            </div>
+                        </div>
+                    </div>
+
+                    {/* Small image 1 */}
+                    <div className="sticky-small-image">
+                        <img 
+                            src="https://cdn.prod.website-files.com/6996b537e802c970c8d73448/6996f5461591de52e09bde13_CON21.jpg"
+                            loading="lazy"
+                            alt=""
+                            className="image-parallax"
+                        />
+                    </div>
+
+                    {/* Medium image */}
+                    <div className="sticky-medium-image">
+                        <img 
+                            src="https://cdn.prod.website-files.com/6996b537e802c970c8d73448/6996f5472e0859c7428bf241_CON27.jpg"
+                            loading="lazy"
+                            alt=""
+                            className="image-parallax"
+                        />
+                    </div>
+
+                    {/* Text block 2 */}
+                    <div className="sticky-text">
+                        <div className="text-weight-medium caps regular-vw-small">Wisdom in the Process</div>
+                        <div className="content">
+                            <div className="heading-vw">The artisan as keeper of knowledge</div>
+                            <div className="sticky-paragraph">
+                                <div className="regular-vw">Time is spent listening to the vat, watching colour shift, feeling the fabric respond. Everything is allowed to arrive as it should.</div>
+                                <div className="regular-vw">Our colours hold depth rather than uniformity. Each piece carries subtle differences, shaped by the day it was dyed and the conditions surrounding it.</div>
+                            </div>
+                        </div>
+                    </div>
+
+                    {/* Small image 2 */}
+                    <div className="sticky-small-image">
+                        <img 
+                            src="https://cdn.prod.website-files.com/6996b537e802c970c8d73448/6996f5450812332a25893226_CON16.jpg"
+                            loading="lazy"
+                            width="150"
+                            height="1000"
+                            sizes="150px"
+                            alt=""
+                            className="image-parallax"
+                        />
+                    </div>
+                </div>
+            </div>
+
 
             {/* ── Editorial Triptych ─────────────────────────────────────── */}
             <section className="section">

@@ -1,7 +1,6 @@
 import { Link, useLocation } from 'react-router-dom'
 import { ShoppingBag, User } from 'lucide-react'
 import { useEffect, useState, useCallback } from 'react'
-import { useAuth } from '../contexts/AuthContext'
 
 function getCartCount(): number {
     try {
@@ -15,11 +14,6 @@ export default function Navbar() {
     const { pathname } = useLocation()
     const [scrolled, setScrolled] = useState(false)
     const [cartCount, setCartCount] = useState(getCartCount)
-    const { user } = useAuth()
-
-    const displayName = user
-        ? (user.user_metadata?.full_name?.split(' ')[0] ?? user.email?.split('@')[0] ?? 'Account')
-        : null
 
     // Recount whenever cart changes
     const refreshCount = useCallback(() => setCartCount(getCartCount()), [])
@@ -41,8 +35,9 @@ export default function Navbar() {
             <div className="navbar-inner">
                 {/* Left — nav links */}
                 <div className="navbar-links">
-                    <Link to="/" className={pathname === '/' ? 'active' : ''}>Home</Link>
+                    <Link to="/" className={pathname === '/' ? 'active' : ''}>home</Link>
                     <Link to="/shop" className={pathname === '/shop' ? 'active' : ''}>Shop</Link>
+                    <Link to="/process" className={pathname === '/process' ? 'active' : ''}>Our process</Link>
                 </div>
 
                 {/* Center — logo */}
@@ -50,22 +45,18 @@ export default function Navbar() {
 
                 {/* Right — actions */}
                 <div className="navbar-actions">
-                    <Link to="/cart" aria-label={`Cart — ${cartCount} items`} className="navbar-cart-link">
+                    <Link to="/about" className={pathname === '/about' ? 'active' : ''}>about us</Link>
+                    <Link to="/partnerships" className={pathname === '/partnerships' ? 'active' : ''}>Partnerships</Link>
+                    <Link to="/search" aria-label="Search">Search</Link>
+                    <Link to="/cart" aria-label={`Bag — ${cartCount} items`} className="navbar-cart-link">
+                        <span>Bag</span>
                         <ShoppingBag size={16} strokeWidth={1.5} />
-                        <span>Cart</span>
                         {cartCount > 0 && (
                             <span className="navbar-cart-badge">{cartCount}</span>
                         )}
                     </Link>
-                    <Link to="/account" aria-label="Account" className="navbar-account-link">
-                        {user ? (
-                            <>
-                                <span className="navbar-user-dot" aria-hidden="true" />
-                                {displayName}
-                            </>
-                        ) : (
-                            <><User size={16} strokeWidth={1.5} /> Sign In</>
-                        )}
+                    <Link to="/account" aria-label="Profile">
+                        <User size={16} strokeWidth={1.5} />
                     </Link>
                 </div>
             </div>
