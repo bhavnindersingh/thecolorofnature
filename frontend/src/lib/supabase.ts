@@ -167,12 +167,11 @@ export interface ReturnRequest {
 // PRODUCTS
 // =============================================================================
 
-/** Fetch all in-stock products */
+/** Fetch all products (tagged for online shop) — out-of-stock products still show with a badge */
 export const getProducts = () =>
     supabase
         .from('products')
         .select('*, product_images(*), product_variants(*)')
-        .eq('in_stock', true)
         .order('name')
 
 /** Fetch a single product by ID with all variants & images */

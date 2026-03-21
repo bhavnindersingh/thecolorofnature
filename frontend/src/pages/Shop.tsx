@@ -63,6 +63,11 @@ function ProductCard({ product }: { product: Product }) {
                     <div className="product-card-placeholder">🌿</div>
                 )}
 
+                {/* Out of stock badge */}
+                {!product.in_stock && (
+                    <div className="product-card-oos-badge">Out of Stock</div>
+                )}
+
                 {/* Wishlist pill */}
                 <button
                     className={`product-card-wish${wished ? ' wished' : ''}`}

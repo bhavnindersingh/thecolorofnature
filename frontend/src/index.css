@@ -1374,6 +1374,22 @@ button {
   transform: scale(1.04);
 }
 
+/* ─── Out of stock badge ───────────────────────────────────────────────────── */
+.product-card-oos-badge {
+  position: absolute;
+  top: 0.75rem;
+  left: 0.75rem;
+  background: rgba(255,255,255,0.88);
+  color: var(--sage);
+  font-size: 0.65rem;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  padding: 0.2rem 0.55rem;
+  border-radius: 2px;
+  pointer-events: none;
+}
+
 /* ─── Wishlist button ──────────────────────────────────────────────────────── */
 .product-card-wish {
   position: absolute;

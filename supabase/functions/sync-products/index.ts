@@ -255,15 +255,15 @@ async function syncProducts(skipImages = false) {
         }
     }
 
-    // ── Step 6: Mark products not in Odoo as out of stock ──
+    // ── Step 6: Delete products no longer in the "Online Shop" tag ──
     const activeOdooIds = allTemplates.map((t) => t.id);
-    const { error: deactivateError } = await supabase
+    const { error: deleteError } = await supabase
         .from("products")
-        .update({ in_stock: false })
+        .delete()
         .not("odoo_product_id", "in", `(${activeOdooIds.join(",")})`);
 
-    if (deactivateError) {
-        log.push(`WARN: Could not deactivate old products: ${deactivateError.message}`);
+    if (deleteError) {
+        log.push(`WARN: Could not remove old products: ${deleteError.message}`);
     }
 
     log.push(`\n=== SYNC COMPLETE ===`);
