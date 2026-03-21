@@ -1,8 +1,14 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { Link } from 'react-router-dom'
 import { ArrowRight } from 'lucide-react'
 import { useQuery } from '@tanstack/react-query'
 import { getProducts, type Product } from '../lib/supabase'
+
+const HERO_IMAGES = [
+    'https://placehold.co/1920x1080/1a2e1a/4a6a4a?text=Image+1',
+    'https://placehold.co/1920x1080/18336B/7a9abf?text=Image+2',
+    'https://placehold.co/1920x1080/2a1a0e/8a6a4a?text=Image+3',
+]
 
 const FEATURES = [
     { num: '01', title: 'Natural Fibres', desc: 'Linen, silk, cashmere, and merino — pure materials that breathe and age beautifully.' },
@@ -59,6 +65,13 @@ function FeaturedCard({ product }: { product: Product }) {
 }
 
 export default function Home() {
+    const [heroIdx, setHeroIdx] = useState(0)
+
+    useEffect(() => {
+        const t = setInterval(() => setHeroIdx(i => (i + 1) % HERO_IMAGES.length), 3000)
+        return () => clearInterval(t)
+    }, [])
+
     const { data: featuredProducts } = useQuery({
         queryKey: ['products'],
         queryFn: async () => {
@@ -75,14 +88,14 @@ export default function Home() {
         <main>
             {/* ── Hero ─────────────────────────────────────────────────── */}
             <section className="hero">
-                <video
-                    autoPlay
-                    loop
-                    muted
-                    playsInline
-                    className="hero-video-bg"
-                    src=""
-                />
+                {HERO_IMAGES.map((src, i) => (
+                    <img
+                        key={src}
+                        src={src}
+                        alt=""
+                        className={`hero-slide${i === heroIdx ? ' hero-slide--active' : ''}`}
+                    />
+                ))}
             </section>
 
             <section className="section" style={{ textAlign: 'center', paddingTop: '4rem', paddingBottom: '4rem' }}>
@@ -96,20 +109,20 @@ export default function Home() {
 
                     <div className="gallery-grid">
                         <div className="gallery-item-1">
-                            <img src="https://images.unsplash.com/photo-1588698942203-0ec57ab478af?q=80&w=2670&auto=format&fit=crop" alt="Woman holding blue fabric" />
+                            <img src="/gallery-1.jpg" alt="Woman holding blue fabric" />
                         </div>
                         <div className="gallery-item-2">
-                            <img src="https://images.unsplash.com/photo-1544265408-0118fb442f2b?q=80&w=2670&auto=format&fit=crop" alt="Drying blue yarn on bamboo racks" />
+                            <img src="/gallery-2.jpg" alt="Drying blue yarn on bamboo racks" />
                         </div>
                         <div className="gallery-item-3">
-                            <img src="https://images.unsplash.com/photo-1563605658092-127e9cbdf3cb?q=80&w=2670&auto=format&fit=crop" alt="People walking with fabric" />
+                            <img src="/gallery-3.jpg" alt="People walking with fabric" />
                             <div className="gallery-text-overlay">
                                 <h3>Fabric that carries the process</h3>
                                 <Link to="/process" className="gallery-link">Explore more</Link>
                             </div>
                         </div>
                         <div className="gallery-item-4">
-                            <img src="https://images.unsplash.com/photo-1517445722055-08e7ff153282?q=80&w=2670&auto=format&fit=crop" alt="Artisan dyeing fabric" />
+                            <img src="/gallery-4.jpg" alt="Artisan dyeing fabric" />
                             <div className="gallery-button-overlay">
                                 <Link to="/shop" className="btn btn-primary" style={{ background: 'var(--surface)', color: 'var(--ink)' }}>
                                     SHOP <ArrowRight size={14} strokeWidth={1.5} />
@@ -211,7 +224,7 @@ export default function Home() {
 
                     {/* Small image 2 */}
                     <div className="sticky-small-image">
-                        <img 
+                        <img
                             src="https://cdn.prod.website-files.com/6996b537e802c970c8d73448/6996f5450812332a25893226_CON16.jpg"
                             loading="lazy"
                             width="150"
@@ -221,6 +234,26 @@ export default function Home() {
                             className="image-parallax"
                         />
                     </div>
+
+                    {/* Text block 3 */}
+                    <div className="sticky-text">
+                        <div className="text-weight-medium caps regular-vw-small">The quiet generosity of plants</div>
+                        <div className="content">
+                            <div className="heading-vw">Colour Beyond Indigo</div>
+                            <div className="sticky-paragraph">
+                                <div className="regular-vw">Other plants enter the process quietly, each offering colour through wood, root, rind, or flower. The jackfruit tree brings warm yellows through upcycled sawdust, prepared with natural mordants like myrobalan, a fruit that also lends soft buttery tones of its own. Pomegranate rind yields delicate, lightfast yellows, while sappan wood reveals luminous pinks, purples, and reds. Beneath the soil, madder root, known as manjistha, carries a deep enduring red, and dried marigold flowers release gentle yellows that shift with the dye bath. Each plant adds its own quiet note to the palette.</div>
+                            </div>
+                        </div>
+                    </div>
+
+                    {/* End image — starts right after text, bottom aligns with left sticky image */}
+                    <div className="sticky-end-image">
+                        <img
+                            src="/end-image.jpg"
+                            alt="Red fabric drying on bamboo racks"
+                        />
+                    </div>
+
                 </div>
             </div>
 
@@ -272,23 +305,6 @@ export default function Home() {
                 </section>
             )}
 
-            {/* ── CTA Banner ────────────────────────────────────────────── */}
-            <div className="cta-banner">
-                <div className="container">
-                    <div className="section-header centered">
-                        <span className="section-tag">Full Collection</span>
-                        <h2 className="section-title"><em>Dressed by Nature</em></h2>
-                        <p className="section-desc" style={{ color: 'rgba(250,248,245,0.6)', marginBottom: '2.5rem' }}>
-                            From dawn to dusk — clothing that honours both the wearer and the world.
-                        </p>
-                    </div>
-                    <div style={{ textAlign: 'center' }}>
-                        <Link to="/shop" className="btn-light">
-                            Explore the Collection <ArrowRight size={14} strokeWidth={1.5} style={{ display: 'inline', verticalAlign: 'middle' }} />
-                        </Link>
-                    </div>
-                </div>
-            </div>
         </main>
     )
 }

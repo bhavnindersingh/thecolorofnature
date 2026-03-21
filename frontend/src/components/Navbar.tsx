@@ -41,13 +41,12 @@ export default function Navbar() {
                 </div>
 
                 {/* Center — logo */}
-                <Link to="/" className="navbar-logo">Color of Nature</Link>
+                <Link to="/" className="navbar-logo">The Colours of Nature</Link>
 
                 {/* Right — actions */}
                 <div className="navbar-actions">
-                    <Link to="/about" className={pathname === '/about' ? 'active' : ''}>about us</Link>
+                    <Link to="/about" className={pathname === '/about' ? 'active' : ''}>about</Link>
                     <Link to="/partnerships" className={pathname === '/partnerships' ? 'active' : ''}>Partnerships</Link>
-                    <Link to="/search" aria-label="Search">Search</Link>
                     <Link to="/cart" aria-label={`Bag — ${cartCount} items`} className="navbar-cart-link">
                         <span>Bag</span>
                         <ShoppingBag size={16} strokeWidth={1.5} />
