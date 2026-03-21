@@ -15,126 +15,31 @@ const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
 
 const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
 
-// ─── XML-RPC Helpers ─────────────────────────────────────────────────────────
+// ─── JSON-RPC Helpers ─────────────────────────────────────────────────────────
 
-function toXmlValue(value: unknown): string {
-    if (typeof value === "string") return `<string>${escapeXml(value)}</string>`;
-    if (typeof value === "number" && Number.isInteger(value)) return `<int>${value}</int>`;
-    if (typeof value === "number") return `<double>${value}</double>`;
-    if (typeof value === "boolean") return `<boolean>${value ? 1 : 0}</boolean>`;
-    if (value === null || value === undefined) return `<nil/>`;
-    if (Array.isArray(value)) {
-        return `<array><data>${value.map((v) => `<value>${toXmlValue(v)}</value>`).join("")}</data></array>`;
-    }
-    if (typeof value === "object") {
-        const members = Object.entries(value as Record<string, unknown>)
-            .map(([k, v]) => `<member><name>${k}</name><value>${toXmlValue(v)}</value></member>`)
-            .join("");
-        return `<struct>${members}</struct>`;
-    }
-    return `<nil/>`;
-}
+let _rpcId = 1;
 
-function escapeXml(s: string): string {
-    return s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
-}
-
-function toParam(value: unknown): string {
-    return `<param><value>${toXmlValue(value)}</value></param>`;
-}
-
-async function xmlrpcCall(endpoint: string, method: string, params: unknown[]): Promise<unknown> {
-    const body = `<?xml version="1.0"?>
-<methodCall>
-  <methodName>${method}</methodName>
-  <params>${params.map(toParam).join("")}</params>
-</methodCall>`;
-
-    const resp = await fetch(`${ODOO_URL}${endpoint}`, {
+async function jsonrpc(service: string, method: string, args: unknown[]): Promise<unknown> {
+    const resp = await fetch(`${ODOO_URL}/jsonrpc`, {
         method: "POST",
-        headers: { "Content-Type": "text/xml" },
-        body,
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ jsonrpc: "2.0", method: "call", id: _rpcId++, params: { service, method, args } }),
     });
-
-    const xml = await resp.text();
-    return parseXmlRpcResponse(xml);
-}
-
-// ─── XML-RPC Response Parser (handles arrays, structs, all types) ────────────
-
-function parseXmlRpcResponse(xml: string): unknown {
-    // Check for fault
-    const faultMatch = xml.match(/<fault>[\s\S]*?<string>([\s\S]*?)<\/string>/);
-    if (faultMatch) throw new Error(`Odoo Fault: ${faultMatch[1]}`);
-
-    // Extract params
-    const paramsMatch = xml.match(/<params>\s*<param>\s*<value>([\s\S]*?)<\/value>\s*<\/param>\s*<\/params>/);
-    if (!paramsMatch) throw new Error("Invalid XML-RPC response");
-    return parseXmlValue(paramsMatch[1].trim());
-}
-
-function parseXmlValue(xml: string): unknown {
-    // Integer
-    let m = xml.match(/^<(?:int|i4)>([-\d]+)<\/(?:int|i4)>$/);
-    if (m) return parseInt(m[1]);
-
-    // Double
-    m = xml.match(/^<double>([-\d.]+)<\/double>$/);
-    if (m) return parseFloat(m[1]);
-
-    // Boolean
-    m = xml.match(/^<boolean>([01])<\/boolean>$/);
-    if (m) return m[1] === "1";
-
-    // String
-    m = xml.match(/^<string>([\s\S]*?)<\/string>$/);
-    if (m) return m[1].replace(/&lt;/g, "<").replace(/&gt;/g, ">").replace(/&amp;/g, "&");
-
-    // Nil
-    if (xml.match(/^<nil\s*\/?>$/)) return null;
-
-    // Array
-    m = xml.match(/^<array>\s*<data>([\s\S]*?)<\/data>\s*<\/array>$/);
-    if (m) {
-        const values: unknown[] = [];
-        const valueRegex = /<value>([\s\S]*?)<\/value>/g;
-        let vm;
-        while ((vm = valueRegex.exec(m[1])) !== null) {
-            values.push(parseXmlValue(vm[1].trim()));
-        }
-        return values;
-    }
-
-    // Struct
-    m = xml.match(/^<struct>([\s\S]*?)<\/struct>$/);
-    if (m) {
-        const obj: Record<string, unknown> = {};
-        const memberRegex = /<member>\s*<name>([\s\S]*?)<\/name>\s*<value>([\s\S]*?)<\/value>\s*<\/member>/g;
-        let mm;
-        while ((mm = memberRegex.exec(m[1])) !== null) {
-            obj[mm[1].trim()] = parseXmlValue(mm[2].trim());
-        }
-        return obj;
-    }
-
-    // Raw string (no tag wrapper — Odoo sometimes returns bare strings)
-    return xml;
+    const json = await resp.json();
+    if (json.error) throw new Error(`Odoo Fault: ${JSON.stringify(json.error.data?.message ?? json.error)}`);
+    return json.result;
 }
 
 // ─── Odoo Helpers ────────────────────────────────────────────────────────────
 
 async function getOdooUid(): Promise<number> {
-    const uid = await xmlrpcCall("/xmlrpc/2/common", "authenticate", [
-        ODOO_DB, ODOO_USERNAME, ODOO_API_KEY, {},
-    ]);
+    const uid = await jsonrpc("common", "authenticate", [ODOO_DB, ODOO_USERNAME, ODOO_API_KEY, {}]);
     if (!uid || typeof uid !== "number") throw new Error("Odoo authentication failed");
     return uid;
 }
 
 async function odooExecute(uid: number, model: string, method: string, args: unknown[], kwargs?: Record<string, unknown>): Promise<unknown> {
-    const params: unknown[] = [ODOO_DB, uid, ODOO_API_KEY, model, method, args];
-    if (kwargs) params.push(kwargs);
-    return xmlrpcCall("/xmlrpc/2/object", "execute_kw", params);
+    return jsonrpc("object", "execute_kw", [ODOO_DB, uid, ODOO_API_KEY, model, method, args, kwargs ?? {}]);
 }
 
 // ─── Sync Logic ──────────────────────────────────────────────────────────────
@@ -168,29 +73,40 @@ interface OdooStockQuant {
 
 const BATCH_SIZE = 50;
 
-async function syncProducts() {
+async function syncProducts(skipImages = false) {
     const uid = await getOdooUid();
     const log: string[] = [];
     log.push(`Authenticated as UID: ${uid}`);
 
-    // ── Step 1: Fetch all saleable product templates in batches ──
-    const templateCount = await odooExecute(uid, "product.template", "search_count", [
-        [["sale_ok", "=", true], ["active", "=", true]],
-    ]) as number;
-    log.push(`Found ${templateCount} saleable templates`);
+    // ── Resolve "Online Shop" tag ID ──
+    const tagRecords = await odooExecute(uid, "product.tag", "search_read",
+        [[["name", "=", "Online Shop"]]], { fields: ["id"], limit: 1 }
+    ) as Array<{ id: number }>;
+    const tagId = tagRecords[0]?.id ?? null;
+    const domain: unknown[] = tagId
+        ? [["sale_ok", "=", true], ["active", "=", true], ["product_tag_ids", "in", [tagId]]]
+        : [["sale_ok", "=", true], ["active", "=", true]];
+    log.push(tagId
+        ? `Filtering by "Online Shop" tag (ID: ${tagId})`
+        : `No "Online Shop" tag found — syncing all saleable products`
+    );
 
+    // ── Step 1: Fetch all matching product templates in batches ──
     const allTemplates: OdooTemplate[] = [];
-    for (let offset = 0; offset < templateCount; offset += BATCH_SIZE) {
-        const batch = await odooExecute(uid, "product.template", "search_read", [
-            [["sale_ok", "=", true], ["active", "=", true]],
-        ], {
-            fields: ["name", "description_sale", "list_price", "categ_id", "image_1920", "product_variant_ids", "product_variant_count", "active"],
+    const templateFields = ["name", "description_sale", "list_price", "categ_id", "product_variant_ids", "product_variant_count", "active"];
+    let offset = 0;
+    while (true) {
+        const batch = await odooExecute(uid, "product.template", "search_read", [domain], {
+            fields: templateFields,
             offset,
             limit: BATCH_SIZE,
         }) as OdooTemplate[];
         allTemplates.push(...batch);
         log.push(`  Fetched templates ${offset + 1}-${offset + batch.length}`);
+        if (batch.length < BATCH_SIZE) break;
+        offset += batch.length;
     }
+    log.push(`Found ${allTemplates.length} templates`);
 
     // ── Step 2: Collect all variant IDs and fetch them ──
     const allVariantIds = allTemplates.flatMap((t) => t.product_variant_ids);
@@ -249,6 +165,8 @@ async function syncProducts() {
             // Extract the leaf category name (e.g., "All / Saleable / Bag" → "Bag")
             const leafCategory = categoryName?.split(" / ").pop() || categoryName;
 
+            const imageUrl = `${ODOO_URL}/web/image/product.template/${t.id}/image_1920`;
+
             return {
                 odoo_product_id: t.id,
                 name: t.name,
@@ -256,7 +174,7 @@ async function syncProducts() {
                 price: t.list_price,
                 category: leafCategory,
                 in_stock: hasStock,
-                image_url: null as string | null, // Will be set if image exists
+                image_url: imageUrl,
                 updated_at: new Date().toISOString(),
             };
         });
@@ -315,57 +233,25 @@ async function syncProducts() {
             }
         }
 
-        // Upload images for products that have them
-        for (const t of batch) {
-            if (!t.image_1920) continue;
+        // Upsert product_images using direct Odoo image URLs (no download needed)
+        const imageRows = batch.map((t) => {
             const supaProductId = supaProductMap.get(t.id);
-            if (!supaProductId) continue;
+            if (!supaProductId) return null;
+            return {
+                product_id: supaProductId,
+                image_url: `${ODOO_URL}/web/image/product.template/${t.id}/image_1920`,
+                alt_text: t.name,
+                display_order: 0,
+                is_primary: true,
+            };
+        }).filter(Boolean);
 
-            try {
-                // Decode base64 image and upload to Supabase Storage
-                const imageBytes = Uint8Array.from(atob(t.image_1920 as string), (c) => c.charCodeAt(0));
-                const imagePath = `products/${t.id}/main.jpg`;
-
-                const { error: uploadError } = await supabase.storage
-                    .from("product-images")
-                    .upload(imagePath, imageBytes, {
-                        contentType: "image/jpeg",
-                        upsert: true,
-                    });
-
-                if (uploadError && !uploadError.message.includes("already exists")) {
-                    log.push(`  WARN: Image upload failed for product ${t.id}: ${uploadError.message}`);
-                    continue;
-                }
-
-                // Get public URL
-                const { data: urlData } = supabase.storage
-                    .from("product-images")
-                    .getPublicUrl(imagePath);
-
-                const imageUrl = urlData.publicUrl;
-
-                // Update product with image URL
-                await supabase
-                    .from("products")
-                    .update({ image_url: imageUrl })
-                    .eq("odoo_product_id", t.id);
-
-                // Upsert into product_images table
-                const { error: imgError } = await supabase
-                    .from("product_images")
-                    .upsert({
-                        product_id: supaProductId,
-                        image_url: imageUrl,
-                        alt_text: t.name,
-                        display_order: 0,
-                        is_primary: true,
-                    }, { onConflict: "product_id,is_primary" });
-
-                if (!imgError) imagesUpserted++;
-            } catch (imgErr) {
-                log.push(`  WARN: Image processing failed for product ${t.id}: ${(imgErr as Error).message}`);
-            }
+        if (imageRows.length > 0) {
+            const productIds = imageRows.map((r) => r!.product_id);
+            await supabase.from("product_images").delete().in("product_id", productIds).eq("is_primary", true);
+            const { error: imgError } = await supabase.from("product_images").insert(imageRows);
+            if (!imgError) imagesUpserted += imageRows.length;
+            else log.push(`  WARN: Image insert batch ${i}: ${imgError.message}`);
         }
     }
 
@@ -417,7 +303,9 @@ serve(async (req) => {
     }
 
     try {
-        const result = await syncProducts();
+        const body = req.method === "POST" ? await req.json().catch(() => ({})) : {};
+        const skipImages = body.skip_images === true;
+        const result = await syncProducts(skipImages);
         return new Response(JSON.stringify(result), {
             headers: { ...corsHeaders, "Content-Type": "application/json" },
         });

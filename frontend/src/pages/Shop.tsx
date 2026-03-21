@@ -1,5 +1,4 @@
 import { useState, useMemo, useRef, useCallback } from 'react'
-import PageHeader from '../components/PageHeader'
 import { Link } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
 import { Heart, ShoppingBag } from 'lucide-react'
@@ -164,7 +163,6 @@ export default function Shop() {
 
     return (
         <main className="shop-page">
-            <PageHeader name="Shop" />
             <div className="container">
 
                 {/* ── Page Hero ────────────────────────────────────────── */}
