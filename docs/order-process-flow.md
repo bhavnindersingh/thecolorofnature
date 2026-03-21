@@ -1,7 +1,7 @@
 # Order Process Flow — The Colours of Nature
 
 **Last updated:** March 2026
-**Stack:** Odoo 17 → Supabase Edge Functions → React Frontend (Netlify)
+**Stack:** Odoo 16 → Supabase Edge Functions → React Frontend (Netlify)
 
 ---
 
@@ -20,7 +20,7 @@ Supabase PostgreSQL (product catalogue cache)
 Supabase Edge Functions (Deno)
       │  XML-RPC
       ▼
-Odoo 17 — 00_TCON_PRODUCTION
+Odoo 16 — 00_TCON_PRODUCTION
 (colnature.synology.me:8069)
 ```
 

@@ -1,7 +1,7 @@
 # The Colours of Nature — Shop Management Guide
 
 **Last updated:** March 2026
-**Stack:** Odoo 17 → Supabase (PostgreSQL + Edge Functions) → React (Netlify CDN)
+**Stack:** Odoo 16 → Supabase (PostgreSQL + Edge Functions) → React (Netlify CDN)
 
 ---
 
