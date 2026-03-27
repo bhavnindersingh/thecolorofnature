@@ -7,13 +7,6 @@
   VITE_SUPABASE_URL      = "https://kfcppshcibxhayduqbzv.supabase.co"
   VITE_SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImtmY3Bwc2hjaWJ4aGF5ZHVxYnp2Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzM0MDgwNjYsImV4cCI6MjA4ODk4NDA2Nn0.qt_EzzQXGfMuoVazmwBDur2HPp4vJ1fPNcTdLsYHsGU"
 
-# Proxy Odoo images through Netlify to avoid mixed-content (HTTP image on HTTPS page)
-[[redirects]]
-  from   = "/odoo-image/*"
-  to     = "http://colnature.synology.me:8069/web/image/:splat"
-  status = 200
-  force  = true
-
 [[redirects]]
   from   = "/*"
   to     = "/index.html"

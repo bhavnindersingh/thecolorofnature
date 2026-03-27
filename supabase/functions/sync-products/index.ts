@@ -165,7 +165,7 @@ async function syncProducts(skipImages = false) {
             // Extract the leaf category name (e.g., "All / Saleable / Bag" → "Bag")
             const leafCategory = categoryName?.split(" / ").pop() || categoryName;
 
-            const imageUrl = `/odoo-image/product.template/${t.id}/image_1920`;
+            const imageUrl = `${SUPABASE_URL}/functions/v1/proxy-image?path=product.template/${t.id}/image_1920`;
 
             return {
                 odoo_product_id: t.id,
@@ -239,7 +239,7 @@ async function syncProducts(skipImages = false) {
             if (!supaProductId) return null;
             return {
                 product_id: supaProductId,
-                image_url: `/odoo-image/product.template/${t.id}/image_1920`,
+                image_url: `${SUPABASE_URL}/functions/v1/proxy-image?path=product.template/${t.id}/image_1920`,
                 alt_text: t.name,
                 display_order: 0,
                 is_primary: true,

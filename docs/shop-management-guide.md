@@ -1,14 +1,14 @@
 # The Colours of Nature — Shop Management Guide
 
 **Last updated:** March 2026
-**Stack:** Odoo 16 → Supabase (PostgreSQL + Edge Functions) → React (Netlify CDN)
+**Stack:** Odoo 17 → Supabase (PostgreSQL + Edge Functions) → React (Netlify CDN)
 
 ---
 
 ## System Architecture
 
 ```
-ODOO 17 (colnature.synology.me:8069)
+ODOO 16 (colnature.synology.me:8069)
   │
   │  product sync (every 30 min, automatic)
   ▼

@@ -19,6 +19,7 @@ import Terms from './pages/Terms'
 import Returns from './pages/Returns'
 import Process from './pages/Process'
 import Privacy from './pages/Privacy'
+import AdminSync from './pages/AdminSync'
 import './index.css'
 
 const queryClient = new QueryClient()
@@ -45,6 +46,7 @@ export default function App() {
             <Route path="/terms" element={<Terms />} />
             <Route path="/returns" element={<Returns />} />
             <Route path="/privacy" element={<Privacy />} />
+            <Route path="/admin" element={<AdminSync />} />
           </Routes>
           <Newsletter />
           <Footer />
