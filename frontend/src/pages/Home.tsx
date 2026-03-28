@@ -5,9 +5,9 @@ import { useQuery } from '@tanstack/react-query'
 import { getProducts, type Product } from '../lib/supabase'
 
 const HERO_IMAGES = [
-    'https://placehold.co/1920x1080/1a2e1a/4a6a4a?text=Image+1',
-    'https://placehold.co/1920x1080/18336B/7a9abf?text=Image+2',
-    'https://placehold.co/1920x1080/2a1a0e/8a6a4a?text=Image+3',
+    '/CON38.jpg',
+    '/CON40.jpg',
+    '/process-label.jpg',
 ]
 
 const FEATURES = [
@@ -15,12 +15,6 @@ const FEATURES = [
     { num: '02', title: 'Slow Fashion', desc: 'Every piece is made in small batches. Quality over quantity, always.' },
     { num: '03', title: 'Ethical Craft', desc: 'Produced in certified ateliers that pay fair wages and honour the craft.' },
     { num: '04', title: 'Eco Packaging', desc: 'Biodegradable tissue, recycled boxes — delivered with care for the earth.' },
-]
-
-const EDITORIAL = [
-    { label: 'New Season', headline: 'The Linen Edit', sub: 'Pure, breathable, effortless.', img: 'https://images.unsplash.com/photo-1515372039744-b8f02a3ae446?w=900&auto=format&fit=crop', link: '/shop' },
-    { label: 'Knitwear', headline: 'Woven Warmth', sub: 'Merino & cashmere for cooler days.', img: 'https://images.unsplash.com/photo-1576566588028-4147f3842f27?w=900&auto=format&fit=crop', link: '/shop' },
-    { label: 'Outerwear', headline: 'The Trench', sub: 'A silhouette born from tradition.', img: 'https://images.unsplash.com/photo-1544441893-675973e31985?w=900&auto=format&fit=crop', link: '/shop' },
 ]
 
 function FeaturedCard({ product }: { product: Product }) {
@@ -149,14 +143,14 @@ export default function Home() {
                 {/* LEFT: Sticky image that stays fixed while you scroll */}
                 <div className="sticky-component">
                     <img 
-                        src="https://cdn.prod.website-files.com/6996b537e802c970c8d73448/6996f547318d9661cd2d682c_CON26.jpg"
+                        src="/CON26.jpg"
                         loading="lazy"
                         sizes="(max-width: 1635px) 100vw, 1635px"
-                        srcSet="https://cdn.prod.website-files.com/6996b537e802c970c8d73448/6996f547318d9661cd2d682c_CON26-p-500.jpg 500w,
-                                https://cdn.prod.website-files.com/6996b537e802c970c8d73448/6996f547318d9661cd2d682c_CON26-p-800.jpg 800w,
-                                https://cdn.prod.website-files.com/6996b537e802c970c8d73448/6996f547318d9661cd2d682c_CON26-p-1080.jpg 1080w,
-                                https://cdn.prod.website-files.com/6996b537e802c970c8d73448/6996f547318d9661cd2d682c_CON26-p-1600.jpg 1600w,
-                                https://cdn.prod.website-files.com/6996b537e802c970c8d73448/6996f547318d9661cd2d682c_CON26.jpg 1635w"
+                        srcSet="/CON26.jpg 500w,
+                                /CON26.jpg 800w,
+                                /CON26.jpg 1080w,
+                                /CON26.jpg 1600w,
+                                /CON26.jpg 1635w"
                         alt=""
                     />
                 </div>
@@ -166,14 +160,14 @@ export default function Home() {
                     {/* Big image 1 */}
                     <div className="sticky-big-image">
                         <img 
-                            src="https://cdn.prod.website-files.com/6996b537e802c970c8d73448/6996f54a90fba6a788f61968_CON39.jpg"
+                            src="/CON39.jpg"
                             loading="lazy"
                             sizes="(max-width: 1635px) 100vw, 1635px"
-                            srcSet="https://cdn.prod.website-files.com/6996b537e802c970c8d73448/6996f54a90fba6a788f61968_CON39-p-500.jpg 500w,
-                                    https://cdn.prod.website-files.com/6996b537e802c970c8d73448/6996f54a90fba6a788f61968_CON39-p-800.jpg 800w,
-                                    https://cdn.prod.website-files.com/6996b537e802c970c8d73448/6996f54a90fba6a788f61968_CON39-p-1080.jpg 1080w,
-                                    https://cdn.prod.website-files.com/6996b537e802c970c8d73448/6996f54a90fba6a788f61968_CON39-p-1600.jpg 1600w,
-                                    https://cdn.prod.website-files.com/6996b537e802c970c8d73448/6996f54a90fba6a788f61968_CON39.jpg 1635w"
+                            srcSet="/CON39.jpg 500w,
+                                    /CON39.jpg 800w,
+                                    /CON39.jpg 1080w,
+                                    /CON39.jpg 1600w,
+                                    /CON39.jpg 1635w"
                             alt=""
                         />
                     </div>
@@ -193,7 +187,7 @@ export default function Home() {
                     {/* Small image 1 */}
                     <div className="sticky-small-image">
                         <img 
-                            src="https://cdn.prod.website-files.com/6996b537e802c970c8d73448/6996f5461591de52e09bde13_CON21.jpg"
+                            src="/CON21.jpg"
                             loading="lazy"
                             alt=""
                             className="image-parallax"
@@ -203,7 +197,7 @@ export default function Home() {
                     {/* Medium image */}
                     <div className="sticky-medium-image">
                         <img 
-                            src="https://cdn.prod.website-files.com/6996b537e802c970c8d73448/6996f5472e0859c7428bf241_CON27.jpg"
+                            src="/CON27.jpg"
                             loading="lazy"
                             alt=""
                             className="image-parallax"
@@ -225,7 +219,7 @@ export default function Home() {
                     {/* Small image 2 */}
                     <div className="sticky-small-image">
                         <img
-                            src="https://cdn.prod.website-files.com/6996b537e802c970c8d73448/6996f5450812332a25893226_CON16.jpg"
+                            src="/CON16.jpg"
                             loading="lazy"
                             width="150"
                             height="1000"
@@ -256,34 +250,6 @@ export default function Home() {
 
                 </div>
             </div>
-
-
-            {/* ── Editorial Triptych ─────────────────────────────────────── */}
-            <section className="section">
-                <div className="container">
-                    <div className="section-header">
-                        <span className="section-tag">Editorials</span>
-                        <h2 className="section-title"><em>Stories of Style</em></h2>
-                    </div>
-                    <div className="editorial-grid">
-                        {EDITORIAL.map(e => (
-                            <Link to={e.link} key={e.headline} className="editorial-card">
-                                <div className="editorial-card-image-wrap">
-                                    <img src={e.img} alt={e.headline} />
-                                </div>
-                                <div className="editorial-card-body">
-                                    <span className="editorial-tag">{e.label}</span>
-                                    <div className="editorial-headline">{e.headline}</div>
-                                    <p className="editorial-sub">{e.sub}</p>
-                                    <span className="editorial-cta">
-                                        Shop Now <ArrowRight size={12} strokeWidth={1.5} style={{ display: 'inline', verticalAlign: 'middle' }} />
-                                    </span>
-                                </div>
-                            </Link>
-                        ))}
-                    </div>
-                </div>
-            </section>
 
             {/* ── Featured Products ──────────────────────────────────────── */}
             {hasFeatured && (

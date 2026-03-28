@@ -3815,8 +3815,8 @@ details[open] .pdp-accordion-head::after {
 }
 
 .footer-logo {
-  width: 72px;
-  height: 72px;
+  height: 140px;
+  width: auto;
   object-fit: contain;
 }
 
