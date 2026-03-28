@@ -1,8 +1,9 @@
 import { useState, useEffect } from 'react'
 import { useNavigate, Link } from 'react-router-dom'
 import { useQuery, useMutation } from '@tanstack/react-query'
-import { MapPin, CheckCircle, AlertCircle, ChevronDown, Package } from 'lucide-react'
-import { getMyAddresses, createOrder, syncOrderToOdoo } from '../lib/supabase'
+import { MapPin, CheckCircle, AlertCircle, ChevronDown, Package, CreditCard, Lock, ArrowLeft } from 'lucide-react'
+import { getMyAddresses, createOrder, confirmOrderPayment, addAddress } from '../lib/supabase'
+import PlacesAutocomplete from '../components/PlacesAutocomplete'
 import type { Address, Product } from '../lib/supabase'
 import { useAuth } from '../contexts/AuthContext'
 
@@ -20,6 +21,8 @@ function loadCart(): CartItem[] {
     return Array.from(map.values())
 }
 
+type Step = 'address' | 'payment' | 'success'
+
 // ─── Address picker ───────────────────────────────────────────────────────────
 const BLANK_ADDR = {
     first_name: '', last_name: '', address_line_1: '', address_line_2: '',
@@ -31,11 +34,12 @@ function AddressPicker({
     onSelect,
 }: {
     selected: Address | Record<string, string> | null
-    onSelect: (addr: Address | Record<string, string>, id?: string) => void
+    onSelect: (addr: Address | Record<string, string>, id?: string, shouldSave?: boolean) => void
 }) {
     const [showNew, setShowNew] = useState(false)
     const [form, setForm] = useState(BLANK_ADDR)
     const [open, setOpen] = useState(false)
+    const [saveToProfile, setSaveToProfile] = useState(false)
 
     const { data: addresses } = useQuery({
         queryKey: ['my-addresses'],
@@ -95,56 +99,76 @@ function AddressPicker({
 
             {/* New address form */}
             {(!addresses?.length || showNew) && (
-                <div>
+                <form onSubmit={e => { e.preventDefault(); if (newFormValid) { onSelect(form, undefined, saveToProfile); setShowNew(false) } }}>
                     <div className="form-row">
                         <div className="form-group" style={{ flex: 1 }}>
                             <label className="form-label">First Name *</label>
-                            <input className="form-input" value={form.first_name} onChange={e => setForm({ ...form, first_name: e.target.value })} />
+                            <input className="form-input" autoComplete="given-name" value={form.first_name} onChange={e => setForm({ ...form, first_name: e.target.value })} />
                         </div>
                         <div className="form-group" style={{ flex: 1 }}>
                             <label className="form-label">Last Name</label>
-                            <input className="form-input" value={form.last_name} onChange={e => setForm({ ...form, last_name: e.target.value })} />
+                            <input className="form-input" autoComplete="family-name" value={form.last_name} onChange={e => setForm({ ...form, last_name: e.target.value })} />
                         </div>
                     </div>
                     <div className="form-group">
                         <label className="form-label">Address Line 1 *</label>
-                        <input className="form-input" value={form.address_line_1} onChange={e => setForm({ ...form, address_line_1: e.target.value })} placeholder="123 Main Street" />
+                        <PlacesAutocomplete
+                            value={form.address_line_1}
+                            onChange={(val) => setForm(f => ({ ...f, address_line_1: val }))}
+                            onPlaceSelect={(r) => setForm(f => ({
+                                ...f,
+                                address_line_1: r.address_line_1 || f.address_line_1,
+                                city:           r.city        || f.city,
+                                state:          r.state       || f.state,
+                                postal_code:    r.postal_code || f.postal_code,
+                                country:        r.country     || f.country,
+                            }))}
+                        />
                     </div>
                     <div className="form-group">
                         <label className="form-label">Address Line 2</label>
-                        <input className="form-input" value={form.address_line_2} onChange={e => setForm({ ...form, address_line_2: e.target.value })} placeholder="Apt, Suite, etc." />
+                        <input className="form-input" autoComplete="address-line2" value={form.address_line_2} onChange={e => setForm({ ...form, address_line_2: e.target.value })} placeholder="Apt, Suite, etc." />
                     </div>
                     <div className="form-row">
                         <div className="form-group" style={{ flex: 1 }}>
                             <label className="form-label">City *</label>
-                            <input className="form-input" value={form.city} onChange={e => setForm({ ...form, city: e.target.value })} />
+                            <input className="form-input" autoComplete="address-level2" value={form.city} onChange={e => setForm({ ...form, city: e.target.value })} />
                         </div>
                         <div className="form-group" style={{ flex: 1 }}>
                             <label className="form-label">State</label>
-                            <input className="form-input" value={form.state} onChange={e => setForm({ ...form, state: e.target.value })} />
+                            <input className="form-input" autoComplete="address-level1" value={form.state} onChange={e => setForm({ ...form, state: e.target.value })} />
                         </div>
                         <div className="form-group" style={{ flex: 1 }}>
                             <label className="form-label">Postal Code *</label>
-                            <input className="form-input" value={form.postal_code} onChange={e => setForm({ ...form, postal_code: e.target.value })} />
+                            <input className="form-input" autoComplete="postal-code" value={form.postal_code} onChange={e => setForm({ ...form, postal_code: e.target.value })} />
                         </div>
                     </div>
                     <div className="form-group">
                         <label className="form-label">Phone</label>
-                        <input className="form-input" type="tel" value={form.phone} onChange={e => setForm({ ...form, phone: e.target.value })} placeholder="+91..." />
+                        <input className="form-input" type="tel" autoComplete="tel" value={form.phone} onChange={e => setForm({ ...form, phone: e.target.value })} placeholder="+91..." />
                     </div>
+                    <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', fontSize: '0.82rem', marginBottom: '0.75rem', cursor: 'pointer' }}>
+                        <input
+                            type="checkbox"
+                            checked={saveToProfile}
+                            onChange={e => setSaveToProfile(e.target.checked)}
+                            style={{ accentColor: 'var(--sage, #4a5e3a)', width: 'auto' }}
+                        />
+                        Save this address to my profile
+                    </label>
                     <div style={{ display: 'flex', gap: '0.75rem', alignItems: 'center' }}>
                         <button
+                            type="submit"
                             className="btn btn-outline btn-sm"
                             disabled={!newFormValid}
-                            onClick={() => { onSelect(form); setShowNew(false) }}
                         >
                             Use This Address
                         </button>
                         {!!addresses?.length && (
-                            <button className="btn btn-ghost btn-sm" onClick={() => setShowNew(false)}>Back to saved</button>
+                            <button type="button" className="btn btn-ghost btn-sm" onClick={() => setShowNew(false)}>Back to saved</button>
                         )}
                     </div>
-                </div>
+                </form>
             )}
         </div>
     )
@@ -157,6 +181,9 @@ export default function Checkout() {
     const [items] = useState<CartItem[]>(loadCart)
     const [selectedAddr, setSelectedAddr] = useState<Address | Record<string, string> | null>(null)
     const [selectedAddrId, setSelectedAddrId] = useState<string | undefined>(undefined)
+    const [shouldSaveAddr, setShouldSaveAddr] = useState(false)
+    const [step, setStep] = useState<Step>('address')
+    const [pendingOrderId, setPendingOrderId] = useState<string | null>(null)
     const [placedOrderId, setPlacedOrderId] = useState<string | null>(null)
     const [odooError, setOdooError] = useState<string | null>(null)
 
@@ -174,12 +201,12 @@ export default function Checkout() {
         if (items.length === 0) navigate('/cart', { replace: true })
     }, [user, authLoading, items.length])
 
-    const placeMutation = useMutation({
+    // Step 1: Create order in Supabase (status: pending)
+    const createMutation = useMutation({
         mutationFn: async () => {
             if (!selectedAddr) throw new Error('Please select a shipping address')
             if (!user) throw new Error('Not logged in')
 
-            // Build address as plain object for Supabase
             const addrPayload: Record<string, string> = {
                 first_name:      String(selectedAddr.first_name ?? ''),
                 last_name:       String((selectedAddr as Address).last_name ?? ''),
@@ -198,45 +225,69 @@ export default function Checkout() {
                 unit_price: i.price,
             }))
 
-            // 1. Create order in Supabase
             const order = await createOrder(orderItems, addrPayload, total, selectedAddrId)
 
-            // 2. Sync to Odoo (best-effort — don't block user if it fails)
-            const odooItems = items.flatMap((i) => {
-                const variant = i.product_variants?.[0]
-                if (!variant?.odoo_variant_id) return []
-                return [{ odoo_variant_id: variant.odoo_variant_id, quantity: i.qty, price: i.price }]
-            })
-            if (odooItems.length > 0) {
-                const fullName = user.user_metadata?.full_name ?? user.email ?? ''
-                syncOrderToOdoo(order.id, user.email ?? '', fullName, odooItems)
-                    .catch((err) => setOdooError(String(err?.message ?? err)))
+            // Save address to profile if user requested and it's a new (unsaved) address
+            if (shouldSaveAddr && !selectedAddrId && selectedAddr) {
+                try {
+                    await addAddress({
+                        label:          'Other',
+                        first_name:     addrPayload.first_name,
+                        last_name:      addrPayload.last_name,
+                        address_line_1: addrPayload.address_line_1,
+                        address_line_2: addrPayload.address_line_2 || null,
+                        city:           addrPayload.city,
+                        state:          addrPayload.state || null,
+                        postal_code:    addrPayload.postal_code,
+                        country:        addrPayload.country,
+                        phone:          addrPayload.phone || null,
+                        is_default:     false,
+                    })
+                } catch {
+                    // Non-critical — order is placed; silently skip if save fails
+                }
             }
 
             return order
         },
         onSuccess: (order) => {
+            setPendingOrderId(order.id)
+            setStep('payment')
+        },
+    })
+
+    // Step 2: Confirm payment (dummy) and sync to Odoo
+    const confirmMutation = useMutation({
+        mutationFn: async () => {
+            if (!pendingOrderId) throw new Error('No pending order')
+            const { data, error } = await confirmOrderPayment(pendingOrderId)
+            if (error) throw new Error(typeof error === 'string' ? error : 'Payment confirmation failed')
+            if (data?.odoo_error) setOdooError(data.odoo_error)
+            return data
+        },
+        onSuccess: () => {
             localStorage.setItem('cart', '[]')
             window.dispatchEvent(new Event('cart-updated'))
-            setPlacedOrderId(order.id)
+            setPlacedOrderId(pendingOrderId)
+            setStep('success')
         },
     })
 
     // ── Success screen ────────────────────────────────────────────────────────
-    if (placedOrderId) {
+    if (step === 'success' && placedOrderId) {
         return (
             <main className="checkout-page">
                 <div className="container">
                     <div className="checkout-success">
                         <CheckCircle size={56} strokeWidth={1} className="checkout-success-icon" />
-                        <h1>Order Placed!</h1>
+                        <h1>Order Confirmed!</h1>
                         <p>Thank you for your order. We'll send you a confirmation soon.</p>
                         <div className="checkout-success-ref">
                             Order ref: <strong>#{placedOrderId.slice(0, 8).toUpperCase()}</strong>
                         </div>
                         {odooError && (
                             <div className="checkout-odoo-warn">
-                                <AlertCircle size={14} /> Order saved, but Odoo sync had an issue: {odooError}
+                                <AlertCircle size={14} /> Order saved, but warehouse sync had an issue: {odooError}
                             </div>
                         )}
                         <div className="checkout-success-actions">
@@ -251,7 +302,123 @@ export default function Checkout() {
 
     if (authLoading) return null
 
-    // ── Checkout form ─────────────────────────────────────────────────────────
+    // ── Payment step ─────────────────────────────────────────────────────────
+    if (step === 'payment') {
+        return (
+            <main className="checkout-page">
+                <div className="container">
+                    <h1 className="checkout-title">Payment</h1>
+
+                    <div className="checkout-grid">
+                        <div className="checkout-left">
+                            <div className="checkout-section">
+                                <div className="checkout-section-title">
+                                    <CreditCard size={16} strokeWidth={1.5} /> Payment Method
+                                </div>
+
+                                {/* Dummy card UI */}
+                                <div style={{
+                                    background: 'linear-gradient(135deg, #4a5e3a 0%, #2d3a24 100%)',
+                                    borderRadius: '12px',
+                                    padding: '24px',
+                                    color: '#fff',
+                                    marginBottom: '1.5rem',
+                                    fontFamily: 'monospace',
+                                }}>
+                                    <div style={{ fontSize: '0.75rem', opacity: 0.7, marginBottom: '16px' }}>CARD NUMBER</div>
+                                    <div style={{ fontSize: '1.2rem', letterSpacing: '3px', marginBottom: '20px' }}>
+                                        **** **** **** 4242
+                                    </div>
+                                    <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.8rem' }}>
+                                        <div>
+                                            <div style={{ opacity: 0.7, fontSize: '0.65rem' }}>CARDHOLDER</div>
+                                            <div>DEMO USER</div>
+                                        </div>
+                                        <div>
+                                            <div style={{ opacity: 0.7, fontSize: '0.65rem' }}>EXPIRES</div>
+                                            <div>12/28</div>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', color: 'var(--sage)', fontSize: '0.82rem', marginBottom: '1rem' }}>
+                                    <Lock size={14} />
+                                    <span>This is a demo payment — no real charges will be made.</span>
+                                </div>
+
+                                <button
+                                    className="btn btn-ghost btn-sm"
+                                    onClick={() => setStep('address')}
+                                    style={{ marginTop: '0.5rem' }}
+                                >
+                                    <ArrowLeft size={12} /> Back to Shipping
+                                </button>
+                            </div>
+                        </div>
+
+                        <div className="checkout-right">
+                            <div className="checkout-section">
+                                <div className="checkout-section-title">
+                                    <Package size={16} strokeWidth={1.5} /> Order Summary
+                                </div>
+
+                                <div className="checkout-items">
+                                    {items.map((item) => {
+                                        const img =
+                                            item.product_images?.find(i => i.is_primary)?.image_url
+                                            ?? item.product_images?.[0]?.image_url
+                                            ?? item.image_url
+                                        return (
+                                            <div className="checkout-item" key={item.id}>
+                                                <div className="checkout-item-thumb">
+                                                    {img
+                                                        ? <img src={img} alt={item.name} />
+                                                        : <span>~</span>}
+                                                    <span className="checkout-item-qty">{item.qty}</span>
+                                                </div>
+                                                <div className="checkout-item-name">{item.name}</div>
+                                                <div className="checkout-item-price">{'\u20B9'}{(item.price * item.qty).toFixed(2)}</div>
+                                            </div>
+                                        )
+                                    })}
+                                </div>
+
+                                <div className="checkout-totals">
+                                    <div className="checkout-total-row">
+                                        <span>Subtotal</span><span>{'\u20B9'}{subtotal.toFixed(2)}</span>
+                                    </div>
+                                    <div className="checkout-total-row">
+                                        <span>Shipping</span>
+                                        <span>{shipping === 0 ? 'Free' : `\u20B9${shipping}`}</span>
+                                    </div>
+                                    <div className="checkout-total-row checkout-grand-total">
+                                        <span>Total</span><span>{'\u20B9'}{total.toFixed(2)}</span>
+                                    </div>
+                                </div>
+
+                                {confirmMutation.error && (
+                                    <div className="form-message error" style={{ marginBottom: '1rem' }}>
+                                        {(confirmMutation.error as Error).message}
+                                    </div>
+                                )}
+
+                                <button
+                                    className="btn btn-primary"
+                                    style={{ width: '100%', justifyContent: 'center' }}
+                                    disabled={confirmMutation.isPending}
+                                    onClick={() => confirmMutation.mutate()}
+                                >
+                                    {confirmMutation.isPending ? 'Processing Payment...' : `Confirm Payment \u2014 \u20B9${total.toFixed(2)}`}
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </main>
+        )
+    }
+
+    // ── Address step (default) ───────────────────────────────────────────────
     return (
         <main className="checkout-page">
             <div className="container">
@@ -266,12 +433,12 @@ export default function Checkout() {
                             </div>
                             <AddressPicker
                                 selected={selectedAddr}
-                                onSelect={(addr, id) => { setSelectedAddr(addr); setSelectedAddrId(id) }}
+                                onSelect={(addr, id, shouldSave) => { setSelectedAddr(addr); setSelectedAddrId(id); setShouldSaveAddr(shouldSave ?? false) }}
                             />
                         </div>
                     </div>
 
-                    {/* Right: Summary + Place Order */}
+                    {/* Right: Summary + Review & Pay */}
                     <div className="checkout-right">
                         <div className="checkout-section">
                             <div className="checkout-section-title">
@@ -289,11 +456,11 @@ export default function Checkout() {
                                             <div className="checkout-item-thumb">
                                                 {img
                                                     ? <img src={img} alt={item.name} />
-                                                    : <span>🌿</span>}
+                                                    : <span>~</span>}
                                                 <span className="checkout-item-qty">{item.qty}</span>
                                             </div>
                                             <div className="checkout-item-name">{item.name}</div>
-                                            <div className="checkout-item-price">₹{(item.price * item.qty).toFixed(2)}</div>
+                                            <div className="checkout-item-price">{'\u20B9'}{(item.price * item.qty).toFixed(2)}</div>
                                         </div>
                                     )
                                 })}
@@ -301,35 +468,35 @@ export default function Checkout() {
 
                             <div className="checkout-totals">
                                 <div className="checkout-total-row">
-                                    <span>Subtotal</span><span>₹{subtotal.toFixed(2)}</span>
+                                    <span>Subtotal</span><span>{'\u20B9'}{subtotal.toFixed(2)}</span>
                                 </div>
                                 <div className="checkout-total-row">
                                     <span>Shipping</span>
-                                    <span>{shipping === 0 ? 'Free' : `₹${shipping}`}</span>
+                                    <span>{shipping === 0 ? 'Free' : `\u20B9${shipping}`}</span>
                                 </div>
                                 {subtotal < 999 && (
                                     <div className="checkout-total-row" style={{ fontSize: '0.78rem', color: 'var(--sage)' }}>
-                                        <span>Add ₹{(999 - subtotal).toFixed(0)} more for free shipping</span>
+                                        <span>Add {'\u20B9'}{(999 - subtotal).toFixed(0)} more for free shipping</span>
                                     </div>
                                 )}
                                 <div className="checkout-total-row checkout-grand-total">
-                                    <span>Total</span><span>₹{total.toFixed(2)}</span>
+                                    <span>Total</span><span>{'\u20B9'}{total.toFixed(2)}</span>
                                 </div>
                             </div>
 
-                            {placeMutation.error && (
+                            {createMutation.error && (
                                 <div className="form-message error" style={{ marginBottom: '1rem' }}>
-                                    {(placeMutation.error as Error).message}
+                                    {(createMutation.error as Error).message}
                                 </div>
                             )}
 
                             <button
                                 className="btn btn-primary"
                                 style={{ width: '100%', justifyContent: 'center' }}
-                                disabled={!selectedAddr || placeMutation.isPending}
-                                onClick={() => placeMutation.mutate()}
+                                disabled={!selectedAddr || createMutation.isPending}
+                                onClick={() => createMutation.mutate()}
                             >
-                                {placeMutation.isPending ? 'Placing Order…' : 'Place Order'}
+                                {createMutation.isPending ? 'Preparing Order...' : 'Review & Pay'}
                             </button>
 
                             <Link to="/cart" className="btn btn-ghost" style={{ display: 'flex', justifyContent: 'center', marginTop: '0.75rem' }}>

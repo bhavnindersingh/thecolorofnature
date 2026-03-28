@@ -1,21 +1,23 @@
 import { useState, useEffect } from 'react'
+import PlacesAutocomplete from '../components/PlacesAutocomplete'
 import type { User } from '@supabase/supabase-js'
 import {
     supabase,
-    getMyOrders, getMyReturns, createReturnRequest,
+    getMyOrders, getMyReturns, createReturnRequest, markReturnShipped,
+    getMyWishlist, removeFromWishlist,
     getMyProfile, updateMyProfile,
     getMyAddresses, addAddress, deleteAddress, setDefaultAddress,
 } from '../lib/supabase'
-import type { Order, ReturnRequest, Profile, Address } from '../lib/supabase'
+import type { Order, ReturnRequest, Profile, Address, Product } from '../lib/supabase'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { useAuth } from '../contexts/AuthContext'
 import {
-    LogOut, Package, RotateCcw, MapPin, User as UserIcon,
+    LogOut, Package, RotateCcw, MapPin, User as UserIcon, Heart, ShoppingBag, Trash2,
     ChevronDown, ChevronUp, Clock, Truck, CheckCircle, XCircle, AlertCircle, Star,
-    Eye, EyeOff,
+    Eye, EyeOff, Send,
 } from 'lucide-react'
 
-type Tab = 'orders' | 'returns' | 'addresses' | 'profile'
+type Tab = 'orders' | 'returns' | 'wishlist' | 'addresses' | 'profile'
 
 const STALE_5MIN = 5 * 60 * 1000
 
@@ -36,9 +38,11 @@ const STATUS_META: Record<string, { label: string; className: string }> = {
     shipped:    { label: 'Shipped',    className: 'badge-shipped' },
     delivered:  { label: 'Delivered',  className: 'badge-delivered' },
     cancelled:  { label: 'Cancelled',  className: 'badge-cancelled' },
-    approved:   { label: 'Approved',   className: 'badge-paid' },
-    rejected:   { label: 'Rejected',   className: 'badge-cancelled' },
-    completed:  { label: 'Completed',  className: 'badge-delivered' },
+    approved:      { label: 'Approved',      className: 'badge-paid' },
+    item_shipped:  { label: 'Item Shipped',  className: 'badge-shipped' },
+    item_received: { label: 'Item Received', className: 'badge-processing' },
+    rejected:      { label: 'Rejected',      className: 'badge-cancelled' },
+    completed:     { label: 'Completed',     className: 'badge-delivered' },
 }
 
 const STATUS_ICON: Record<string, React.ReactNode> = {
@@ -219,10 +223,51 @@ function OrdersTab() {
                                 <div className="order-detail-section">
                                     <div className="order-detail-label">Return Request</div>
                                     {order.return_requests.map((ret) => (
-                                        <div className="return-info" key={ret.id}>
-                                            <StatusBadge status={ret.status} />
-                                            <span className="return-reason">{ret.reason}</span>
+                                        <div className="return-info" key={ret.id} style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+                                            <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                                                <StatusBadge status={ret.status} />
+                                                <span className="return-reason">{ret.reason}</span>
+                                            </div>
                                             {ret.admin_note && <span className="return-admin-note">Note: {ret.admin_note}</span>}
+
+                                            {/* Approved: show instructions + ship button */}
+                                            {ret.status === 'approved' && (
+                                                <div style={{ background: 'var(--cream)', padding: '0.75rem', borderRadius: '6px', marginTop: '0.25rem' }}>
+                                                    {ret.return_instructions && (
+                                                        <div style={{ fontSize: '0.85rem', marginBottom: '0.75rem', whiteSpace: 'pre-wrap' }}>
+                                                            <strong>Return Instructions:</strong><br />{ret.return_instructions}
+                                                        </div>
+                                                    )}
+                                                    <button
+                                                        className="btn btn-primary btn-sm"
+                                                        onClick={async () => {
+                                                            await markReturnShipped(ret.id)
+                                                            queryClient.invalidateQueries({ queryKey: ['my-orders'] })
+                                                            queryClient.invalidateQueries({ queryKey: ['my-returns'] })
+                                                        }}
+                                                    >
+                                                        <Send size={12} /> I've Shipped the Item
+                                                    </button>
+                                                </div>
+                                            )}
+
+                                            {ret.status === 'item_shipped' && (
+                                                <div style={{ fontSize: '0.85rem', color: 'var(--sage)' }}>
+                                                    <Truck size={14} /> Waiting for your item to be received by our team.
+                                                </div>
+                                            )}
+
+                                            {ret.status === 'item_received' && (
+                                                <div style={{ fontSize: '0.85rem', color: 'var(--sage)' }}>
+                                                    <Package size={14} /> Item received. Return is being processed.
+                                                </div>
+                                            )}
+
+                                            {ret.status === 'completed' && (
+                                                <div style={{ fontSize: '0.85rem', color: 'var(--sage)' }}>
+                                                    <CheckCircle size={14} /> Return completed. Stock has been restored.
+                                                </div>
+                                            )}
                                         </div>
                                     ))}
                                 </div>
@@ -238,6 +283,7 @@ function OrdersTab() {
 
 // ─── Returns Tab ──────────────────────────────────────────────────────────────
 function ReturnsTab() {
+    const queryClient = useQueryClient()
     const { data: returns, isLoading, error } = useQuery({
         queryKey: ['my-returns'],
         queryFn: async () => {
@@ -274,12 +320,134 @@ function ReturnsTab() {
                         {ret.admin_note && (
                             <div className="return-admin-note"><AlertCircle size={12} /> {ret.admin_note}</div>
                         )}
+
+                        {ret.status === 'approved' && (
+                            <div style={{ background: 'var(--cream)', padding: '0.75rem', borderRadius: '6px', marginTop: '0.5rem' }}>
+                                {ret.return_instructions && (
+                                    <div style={{ fontSize: '0.85rem', marginBottom: '0.75rem', whiteSpace: 'pre-wrap' }}>
+                                        <strong>Return Instructions:</strong><br />{ret.return_instructions}
+                                    </div>
+                                )}
+                                <button
+                                    className="btn btn-primary btn-sm"
+                                    onClick={async () => {
+                                        await markReturnShipped(ret.id)
+                                        queryClient.invalidateQueries({ queryKey: ['my-returns'] })
+                                        queryClient.invalidateQueries({ queryKey: ['my-orders'] })
+                                    }}
+                                >
+                                    <Send size={12} /> I've Shipped the Item
+                                </button>
+                            </div>
+                        )}
+
+                        {ret.status === 'item_shipped' && (
+                            <div style={{ fontSize: '0.85rem', color: 'var(--sage)', marginTop: '0.5rem' }}>
+                                <Truck size={14} /> Waiting for your item to be received.
+                            </div>
+                        )}
+
+                        {ret.status === 'item_received' && (
+                            <div style={{ fontSize: '0.85rem', color: 'var(--sage)', marginTop: '0.5rem' }}>
+                                <Package size={14} /> Item received — return being processed.
+                            </div>
+                        )}
+
+                        {ret.status === 'completed' && (
+                            <div style={{ fontSize: '0.85rem', color: 'var(--sage)', marginTop: '0.5rem' }}>
+                                <CheckCircle size={14} /> Return completed.
+                            </div>
+                        )}
+
                         <div className="return-date">
                             Requested {fmtDate(ret.created_at)}
                         </div>
                     </div>
                 </div>
             ))}
+        </div>
+    )
+}
+
+
+// ─── Wishlist Tab ─────────────────────────────────────────────────────────────
+function WishlistTab() {
+    const queryClient = useQueryClient()
+
+    const { data: wishlist, isLoading, error } = useQuery({
+        queryKey: ['my-wishlist'],
+        queryFn: async () => {
+            const { data, error } = await getMyWishlist()
+            if (error) throw error
+            return data as Array<{ id: number; product_id: number; product: Product | null }>
+        },
+        staleTime: STALE_5MIN,
+    })
+
+    const removeMutation = useMutation({
+        mutationFn: (productId: number) => removeFromWishlist(productId),
+        onSuccess: () => queryClient.invalidateQueries({ queryKey: ['my-wishlist'] }),
+    })
+
+    const addToCart = (product: Product) => {
+        const cart: Product[] = JSON.parse(localStorage.getItem('cart') || '[]')
+        cart.push(product)
+        localStorage.setItem('cart', JSON.stringify(cart))
+        window.dispatchEvent(new Event('cart-updated'))
+    }
+
+    if (isLoading) return <div className="account-loading">Loading...</div>
+    if (error) return <div className="account-empty"><AlertCircle size={32} strokeWidth={1} /><p>Could not load favourites</p></div>
+
+    if (!wishlist?.length) {
+        return (
+            <div className="account-empty">
+                <Heart size={40} strokeWidth={1} />
+                <p>No favourites yet</p>
+                <span>Browse the shop and tap the heart icon to save items here.</span>
+            </div>
+        )
+    }
+
+    return (
+        <div className="address-grid">
+            {wishlist.map((item) => {
+                const product = item.product
+                if (!product) return null
+                const img =
+                    product.product_images?.find((i: { is_primary: boolean }) => i.is_primary)?.image_url
+                    ?? product.product_images?.[0]?.image_url
+                    ?? product.image_url
+                return (
+                    <div className="address-card" key={item.id} style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
+                        <div style={{ display: 'flex', gap: '0.75rem', alignItems: 'flex-start' }}>
+                            <div style={{ width: 64, height: 80, borderRadius: 6, overflow: 'hidden', flexShrink: 0, background: 'var(--cream)' }}>
+                                {img ? <img src={img} alt={product.name} style={{ width: '100%', height: '100%', objectFit: 'cover' }} /> : null}
+                            </div>
+                            <div style={{ flex: 1 }}>
+                                <div style={{ fontWeight: 500, fontSize: '0.9rem' }}>{product.name}</div>
+                                {product.category && <div style={{ fontSize: '0.78rem', color: 'var(--ink-muted)', marginTop: '0.15rem' }}>{product.category}</div>}
+                                <div style={{ fontWeight: 600, marginTop: '0.35rem' }}>{'\u20B9'}{product.price.toFixed(2)}</div>
+                                {!product.in_stock && <span className="status-badge badge-cancelled" style={{ fontSize: '0.7rem', marginTop: '0.25rem' }}>Out of Stock</span>}
+                            </div>
+                        </div>
+                        <div className="address-actions">
+                            {product.in_stock && (
+                                <button className="btn btn-primary btn-sm" onClick={() => addToCart(product)}>
+                                    <ShoppingBag size={12} /> Add to Cart
+                                </button>
+                            )}
+                            <button
+                                className="btn btn-ghost btn-sm"
+                                disabled={removeMutation.isPending}
+                                onClick={() => removeMutation.mutate(product.id)}
+                            >
+                                <Trash2 size={12} /> Remove
+                            </button>
+                        </div>
+                    </div>
+                )
+            })}
         </div>
     )
 }
@@ -379,7 +547,7 @@ function AddressesTab() {
             )}
 
             {showForm ? (
-                <div className="address-form" style={{ marginTop: '1.5rem' }}>
+                <form className="address-form" style={{ marginTop: '1.5rem' }} onSubmit={e => { e.preventDefault(); addMutation.mutate(form) }}>
                     <div className="form-row">
                         <div className="form-group" style={{ flex: 1 }}>
                             <label className="form-label">Label</label>
@@ -389,50 +557,61 @@ function AddressesTab() {
                         </div>
                         <div className="form-group" style={{ flex: 1 }}>
                             <label className="form-label">First Name *</label>
-                            <input className="form-input" value={form.first_name} onChange={(e) => setForm({ ...form, first_name: e.target.value })} />
+                            <input className="form-input" autoComplete="given-name" value={form.first_name} onChange={(e) => setForm({ ...form, first_name: e.target.value })} />
                         </div>
                         <div className="form-group" style={{ flex: 1 }}>
                             <label className="form-label">Last Name</label>
-                            <input className="form-input" value={form.last_name} onChange={(e) => setForm({ ...form, last_name: e.target.value })} />
+                            <input className="form-input" autoComplete="family-name" value={form.last_name} onChange={(e) => setForm({ ...form, last_name: e.target.value })} />
                         </div>
                     </div>
                     <div className="form-group">
                         <label className="form-label">Address Line 1 *</label>
-                        <input className="form-input" value={form.address_line_1} onChange={(e) => setForm({ ...form, address_line_1: e.target.value })} placeholder="123 Main Street" />
+                        <PlacesAutocomplete
+                            value={form.address_line_1}
+                            onChange={(val) => setForm(f => ({ ...f, address_line_1: val }))}
+                            onPlaceSelect={(r) => setForm(f => ({
+                                ...f,
+                                address_line_1: r.address_line_1 || f.address_line_1,
+                                city:           r.city        || f.city,
+                                state:          r.state       || f.state,
+                                postal_code:    r.postal_code || f.postal_code,
+                                country:        r.country     || f.country,
+                            }))}
+                        />
                     </div>
                     <div className="form-group">
                         <label className="form-label">Address Line 2</label>
-                        <input className="form-input" value={form.address_line_2} onChange={(e) => setForm({ ...form, address_line_2: e.target.value })} placeholder="Apt, Suite, etc." />
+                        <input className="form-input" autoComplete="address-line2" value={form.address_line_2} onChange={(e) => setForm({ ...form, address_line_2: e.target.value })} placeholder="Apt, Suite, etc." />
                     </div>
                     <div className="form-row">
                         <div className="form-group" style={{ flex: 1 }}>
                             <label className="form-label">City *</label>
-                            <input className="form-input" value={form.city} onChange={(e) => setForm({ ...form, city: e.target.value })} />
+                            <input className="form-input" autoComplete="address-level2" value={form.city} onChange={(e) => setForm({ ...form, city: e.target.value })} />
                         </div>
                         <div className="form-group" style={{ flex: 1 }}>
                             <label className="form-label">State</label>
-                            <input className="form-input" value={form.state} onChange={(e) => setForm({ ...form, state: e.target.value })} />
+                            <input className="form-input" autoComplete="address-level1" value={form.state} onChange={(e) => setForm({ ...form, state: e.target.value })} />
                         </div>
                         <div className="form-group" style={{ flex: 1 }}>
                             <label className="form-label">Postal Code *</label>
-                            <input className="form-input" value={form.postal_code} onChange={(e) => setForm({ ...form, postal_code: e.target.value })} />
+                            <input className="form-input" autoComplete="postal-code" value={form.postal_code} onChange={(e) => setForm({ ...form, postal_code: e.target.value })} />
                         </div>
                     </div>
                     <div className="form-group">
                         <label className="form-label">Phone</label>
-                        <input className="form-input" type="tel" value={form.phone} onChange={(e) => setForm({ ...form, phone: e.target.value })} placeholder="+91..." />
+                        <input className="form-input" type="tel" autoComplete="tel" value={form.phone} onChange={(e) => setForm({ ...form, phone: e.target.value })} placeholder="+91..." />
                     </div>
                     <div className="return-form-actions">
                         <button
+                            type="submit"
                             className="btn btn-primary btn-sm"
-                            onClick={() => addMutation.mutate(form)}
                             disabled={!canSubmit || addMutation.isPending}
                         >
                             {addMutation.isPending ? 'Saving…' : 'Save Address'}
                         </button>
-                        <button className="btn btn-ghost btn-sm" onClick={() => { setShowForm(false); setForm(BLANK_ADDR) }}>Cancel</button>
+                        <button type="button" className="btn btn-ghost btn-sm" onClick={() => { setShowForm(false); setForm(BLANK_ADDR) }}>Cancel</button>
                     </div>
-                </div>
+                </form>
             ) : (
                 <button className="btn btn-outline btn-sm" onClick={() => setShowForm(true)} style={{ marginTop: '1.5rem' }}>
                     <MapPin size={12} /> Add New Address
@@ -620,10 +799,11 @@ export default function Account() {
     }
 
     const TABS: { key: Tab; label: string; icon: React.ReactNode }[] = [
-        { key: 'orders',    label: 'Orders',    icon: <Package size={16} strokeWidth={1.5} /> },
-        { key: 'returns',   label: 'Returns',   icon: <RotateCcw size={16} strokeWidth={1.5} /> },
-        { key: 'addresses', label: 'Addresses', icon: <MapPin size={16} strokeWidth={1.5} /> },
-        { key: 'profile',   label: 'Profile',   icon: <UserIcon size={16} strokeWidth={1.5} /> },
+        { key: 'orders',    label: 'Orders',     icon: <Package size={16} strokeWidth={1.5} /> },
+        { key: 'returns',   label: 'Returns',    icon: <RotateCcw size={16} strokeWidth={1.5} /> },
+        { key: 'wishlist',  label: 'Favourites', icon: <Heart size={16} strokeWidth={1.5} /> },
+        { key: 'addresses', label: 'Addresses',  icon: <MapPin size={16} strokeWidth={1.5} /> },
+        { key: 'profile',   label: 'Profile',    icon: <UserIcon size={16} strokeWidth={1.5} /> },
     ]
 
     if (authLoading) return null
@@ -658,6 +838,7 @@ export default function Account() {
                     <div className="account-content">
                         {activeTab === 'orders'    && <OrdersTab />}
                         {activeTab === 'returns'   && <ReturnsTab />}
+                        {activeTab === 'wishlist'  && <WishlistTab />}
                         {activeTab === 'addresses' && <AddressesTab />}
                         {activeTab === 'profile'   && <ProfileTab user={user} />}
                     </div>

@@ -147,7 +147,7 @@ export interface OrderStatusHistory {
     created_at: string
 }
 
-export type ReturnStatus = 'pending' | 'approved' | 'rejected' | 'completed'
+export type ReturnStatus = 'pending' | 'approved' | 'item_shipped' | 'item_received' | 'rejected' | 'completed'
 
 export interface ReturnRequest {
     id: string
@@ -157,6 +157,7 @@ export interface ReturnRequest {
     status: ReturnStatus
     odoo_return_id: number | null
     admin_note: string | null
+    return_instructions: string | null
     created_at: string
     updated_at: string
     // Joined
@@ -267,19 +268,19 @@ export const addAddress = async (address: Omit<Address, 'id' | 'user_id' | 'crea
     return supabase.from('addresses').insert({ ...address, user_id: user.id }).select().single()
 }
 
-/** Set an address as default (unsets all others first) */
+/** Set an address as default — atomic single UPDATE via DB function */
 export const setDefaultAddress = async (addressId: string) => {
     const { data: { user } } = await supabase.auth.getUser()
     if (!user) throw new Error('Not authenticated')
-    // Unset all
-    await supabase.from('addresses').update({ is_default: false }).eq('user_id', user.id)
-    // Set chosen one
-    return supabase.from('addresses').update({ is_default: true }).eq('id', addressId)
+    return supabase.rpc('set_default_address', { p_address_id: addressId })
 }
 
-/** Delete an address */
-export const deleteAddress = async (addressId: string) =>
-    supabase.from('addresses').delete().eq('id', addressId)
+/** Delete an address (user_id guard as defence-in-depth alongside RLS) */
+export const deleteAddress = async (addressId: string) => {
+    const { data: { user } } = await supabase.auth.getUser()
+    if (!user) throw new Error('Not authenticated')
+    return supabase.from('addresses').delete().eq('id', addressId).eq('user_id', user.id)
+}
 
 // =============================================================================
 // WISHLIST
@@ -300,8 +301,11 @@ export const addToWishlist = async (productId: number) => {
 }
 
 /** Remove a product from the wishlist */
-export const removeFromWishlist = (productId: number) =>
-    supabase.from('wishlist_items').delete().eq('product_id', productId)
+export const removeFromWishlist = async (productId: number) => {
+    const { data: { user } } = await supabase.auth.getUser()
+    if (!user) throw new Error('Not authenticated')
+    return supabase.from('wishlist_items').delete().eq('product_id', productId).eq('user_id', user.id)
+}
 
 // =============================================================================
 // RETURNS
@@ -340,13 +344,17 @@ export const getMyProfile = async () => {
         .single()
 }
 
-/** Update the current user's profile */
-export const updateMyProfile = async (updates: { full_name?: string; first_name?: string; last_name?: string; phone?: string }) => {
+/** Update the current user's profile. Keeps full_name in sync with first/last name. */
+export const updateMyProfile = async (updates: { first_name?: string; last_name?: string; phone?: string }) => {
     const { data: { user } } = await supabase.auth.getUser()
     if (!user) throw new Error('Not authenticated')
+    const payload: Record<string, string | null> = { ...updates }
+    if ('first_name' in updates || 'last_name' in updates) {
+        payload.full_name = [updates.first_name ?? '', updates.last_name ?? ''].filter(Boolean).join(' ') || null
+    }
     return supabase
         .from('profiles')
-        .update(updates)
+        .update(payload)
         .eq('id', user.id)
         .select()
         .single()
@@ -420,3 +428,29 @@ export const triggerProductSync = () =>
     supabase.functions.invoke('sync-products', {
         body: {},
     })
+
+// =============================================================================
+// ORDER CONFIRMATION (dummy payment flow)
+// =============================================================================
+
+/** Confirm order payment (dummy) and sync to Odoo */
+export const confirmOrderPayment = (orderId: string) =>
+    supabase.functions.invoke('confirm-order', {
+        body: { order_id: orderId },
+    })
+
+// =============================================================================
+// RETURN ACTIONS
+// =============================================================================
+
+/** Mark a return request as "item shipped" (customer action) */
+export const markReturnShipped = async (returnId: string) => {
+    const { data: { user } } = await supabase.auth.getUser()
+    if (!user) throw new Error('Not authenticated')
+    return supabase
+        .from('return_requests')
+        .update({ status: 'item_shipped', updated_at: new Date().toISOString() })
+        .eq('id', returnId)
+        .eq('user_id', user.id)
+        .eq('status', 'approved')
+}
