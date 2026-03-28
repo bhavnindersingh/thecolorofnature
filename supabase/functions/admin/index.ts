@@ -1,6 +1,6 @@
 import { serve } from "https://deno.land/std@0.177.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
-import { sendEmail, buildReturnApprovalEmail } from "../_shared/email.ts";
+import { sendEmail, buildReturnApprovalEmail, buildReturnRejectedEmail, buildReturnCompletedEmail, buildOrderShippedEmail } from "../_shared/email.ts";
 
 // ─── Environment ─────────────────────────────────────────────────────────────
 
@@ -156,6 +156,23 @@ async function updateTracking(
         .eq("id", order_id);
     if (error) throw new Error(error.message);
 
+    // Send shipping notification email
+    try {
+        const { data: order } = await supabase.from("orders").select("user_id").eq("id", order_id).single();
+        if (order?.user_id) {
+            const { data: { user } } = await supabase.auth.admin.getUserById(order.user_id);
+            if (user?.email) {
+                const { data: profile } = await supabase.from("profiles").select("full_name, first_name").eq("id", order.user_id).single();
+                const customerName = profile?.full_name ?? profile?.first_name ?? "Customer";
+                const orderRef = order_id.slice(0, 8).toUpperCase();
+                const { subject, html } = buildOrderShippedEmail(customerName, orderRef, carrier, tracking_number);
+                await sendEmail(user.email, subject, html);
+            }
+        }
+    } catch (emailErr) {
+        console.error("Failed to send shipping email:", emailErr);
+    }
+
     await logEvent(supabase, "order.tracking_updated", "order", order_id, {
         tracking_number,
         carrier,
@@ -285,6 +302,20 @@ async function handleReturn(
             .update({ status: "rejected", admin_note: admin_note ?? null, updated_at: new Date().toISOString() })
             .eq("id", return_request_id);
 
+        // Send rejection email
+        try {
+            const { data: { user } } = await supabase.auth.admin.getUserById(returnReq.user_id);
+            if (user?.email) {
+                const { data: profile } = await supabase.from("profiles").select("full_name, first_name").eq("id", returnReq.user_id).single();
+                const customerName = profile?.full_name ?? profile?.first_name ?? "Customer";
+                const orderRef = returnReq.order_id.slice(0, 8).toUpperCase();
+                const { subject, html } = buildReturnRejectedEmail(customerName, orderRef, admin_note ?? null);
+                await sendEmail(user.email, subject, html);
+            }
+        } catch (emailErr) {
+            console.error("Failed to send return rejection email:", emailErr);
+        }
+
         await logEvent(supabase, "return.rejected", "return", return_request_id, {
             order_id: returnReq.order_id,
             admin_note,
@@ -399,6 +430,22 @@ async function completeReturn(
         .from("return_requests")
         .update({ status: "completed", updated_at: new Date().toISOString() })
         .eq("id", return_request_id);
+
+    // Send return completed email
+    try {
+        const { data: { user } } = await supabase.auth.admin.getUserById(
+            (await supabase.from("return_requests").select("user_id").eq("id", return_request_id).single()).data?.user_id ?? ""
+        );
+        if (user?.email) {
+            const { data: profile } = await supabase.from("profiles").select("full_name, first_name").eq("id", user.id).single();
+            const customerName = profile?.full_name ?? profile?.first_name ?? "Customer";
+            const orderRef = returnReq.order_id.slice(0, 8).toUpperCase();
+            const { subject, html } = buildReturnCompletedEmail(customerName, orderRef);
+            await sendEmail(user.email, subject, html);
+        }
+    } catch (emailErr) {
+        console.error("Failed to send return completed email:", emailErr);
+    }
 
     await logEvent(supabase, "return.completed", "return", return_request_id, {
         order_id: returnReq.order_id,

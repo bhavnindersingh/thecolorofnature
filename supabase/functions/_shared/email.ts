@@ -167,6 +167,106 @@ export function buildInviteEmail(
 
 // ─── Transactional email templates ───────────────────────────────────────────
 
+export function buildOrderConfirmationEmail(
+  customerName: string,
+  orderRef: string,
+  items: Array<{ name: string; quantity: number; unit_price: number }>,
+  total: number,
+): { subject: string; html: string } {
+  const itemRows = items.map((i) =>
+    `<tr>
+      <td style="padding: 8px 0; border-bottom: 1px solid #f0ede8;">${i.name}</td>
+      <td style="padding: 8px 0; border-bottom: 1px solid #f0ede8; text-align: center;">${i.quantity}</td>
+      <td style="padding: 8px 0; border-bottom: 1px solid #f0ede8; text-align: right;">£${(i.unit_price * i.quantity).toFixed(2)}</td>
+    </tr>`
+  ).join("");
+  return {
+    subject: `Order Confirmed — #${orderRef}`,
+    html: layout(`
+      <h2 style="color: #4a5e3a; margin-top: 0;">Thank you, ${customerName}!</h2>
+      <p>Your order has been confirmed and is being prepared. We'll let you know when it's on its way.</p>
+      <table style="width: 100%; border-collapse: collapse; margin: 20px 0; font-size: 0.9em;">
+        <thead>
+          <tr style="border-bottom: 2px solid #4a5e3a;">
+            <th style="text-align: left; padding: 8px 0;">Item</th>
+            <th style="text-align: center; padding: 8px 0;">Qty</th>
+            <th style="text-align: right; padding: 8px 0;">Price</th>
+          </tr>
+        </thead>
+        <tbody>${itemRows}</tbody>
+        <tfoot>
+          <tr>
+            <td colspan="2" style="padding: 12px 0 0; font-weight: bold;">Total</td>
+            <td style="padding: 12px 0 0; text-align: right; font-weight: bold;">£${total.toFixed(2)}</td>
+          </tr>
+        </tfoot>
+      </table>
+      <p style="color: #888; font-size: 0.85em;">Order reference: <strong>#${orderRef}</strong></p>
+      <p style="color: #888; font-size: 0.85em;">
+        Questions? Contact us at <a href="mailto:shop@thecoloursofnature.com" style="color: #4a5e3a;">shop@thecoloursofnature.com</a>
+      </p>
+    `),
+  };
+}
+
+export function buildOrderShippedEmail(
+  customerName: string,
+  orderRef: string,
+  carrier: string,
+  trackingNumber: string,
+): { subject: string; html: string } {
+  return {
+    subject: `Your order is on its way — #${orderRef}`,
+    html: layout(`
+      <h2 style="color: #4a5e3a; margin-top: 0;">Your order has been shipped!</h2>
+      <p>Dear ${customerName},</p>
+      <p>Great news — your order <strong>#${orderRef}</strong> is on its way to you.</p>
+      <div style="background: #f5f3ef; padding: 16px; border-radius: 8px; margin: 20px 0;">
+        <p style="margin: 0 0 8px;"><strong>Carrier:</strong> ${carrier}</p>
+        <p style="margin: 0;"><strong>Tracking Number:</strong> ${trackingNumber}</p>
+      </div>
+      <p style="color: #888; font-size: 0.85em;">
+        Questions? Contact us at <a href="mailto:shop@thecoloursofnature.com" style="color: #4a5e3a;">shop@thecoloursofnature.com</a>
+      </p>
+    `),
+  };
+}
+
+export function buildReturnRejectedEmail(
+  customerName: string,
+  orderRef: string,
+  adminNote: string | null,
+): { subject: string; html: string } {
+  return {
+    subject: `Return Request Update — Order #${orderRef}`,
+    html: layout(`
+      <h2 style="color: #4a5e3a; margin-top: 0;">Return Request Update</h2>
+      <p>Dear ${customerName},</p>
+      <p>Unfortunately, your return request for order <strong>#${orderRef}</strong> could not be approved at this time.</p>
+      ${adminNote ? `<div style="background: #f5f3ef; padding: 16px; border-radius: 8px; margin: 20px 0;"><p style="margin: 0;">${adminNote}</p></div>` : ""}
+      <p>If you have questions, please contact us at <a href="mailto:shop@thecoloursofnature.com" style="color: #4a5e3a;">shop@thecoloursofnature.com</a></p>
+    `),
+  };
+}
+
+export function buildReturnCompletedEmail(
+  customerName: string,
+  orderRef: string,
+): { subject: string; html: string } {
+  return {
+    subject: `Return Completed — Order #${orderRef}`,
+    html: layout(`
+      <h2 style="color: #4a5e3a; margin-top: 0;">Return Completed</h2>
+      <p>Dear ${customerName},</p>
+      <p>Your return for order <strong>#${orderRef}</strong> has been fully processed.</p>
+      <p>If a refund was agreed, please allow 3–5 business days for it to appear on your original payment method.</p>
+      <p style="color: #888; font-size: 0.85em;">
+        Questions? Contact us at <a href="mailto:shop@thecoloursofnature.com" style="color: #4a5e3a;">shop@thecoloursofnature.com</a>
+      </p>
+    `),
+  };
+}
+
 export function buildReturnApprovalEmail(
   customerName: string,
   orderRef: string,

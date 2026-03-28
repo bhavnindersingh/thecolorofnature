@@ -1,5 +1,6 @@
 import { serve } from "https://deno.land/std@0.177.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { sendEmail, buildOrderConfirmationEmail } from "../_shared/email.ts";
 
 // ─── Environment ─────────────────────────────────────────────────────────────
 
@@ -137,9 +138,7 @@ serve(async (req) => {
 
         const customerName =
             profile?.full_name ??
-            [profile?.first_name, profile?.last_name]
-                .filter(Boolean)
-                .join(" ") || user.email;
+            ([profile?.first_name, profile?.last_name].filter(Boolean).join(" ") || user.email);
 
         // 4. Build items for Odoo sync
         type OrderItem = {
@@ -213,6 +212,28 @@ serve(async (req) => {
             },
             "system",
         );
+
+        // 7. Send order confirmation email
+        try {
+            const itemsForEmail = (order.order_items as Array<{
+                quantity: number; unit_price: number;
+                product: { name?: string } | null;
+            }>).map((i) => ({
+                name: i.product?.name ?? "Item",
+                quantity: i.quantity,
+                unit_price: i.unit_price,
+            }));
+            const total = itemsForEmail.reduce((s, i) => s + i.unit_price * i.quantity, 0);
+            const { subject, html } = buildOrderConfirmationEmail(
+                customerName as string,
+                order_id.slice(0, 8).toUpperCase(),
+                itemsForEmail,
+                total,
+            );
+            await sendEmail(user.email!, subject, html);
+        } catch (emailErr) {
+            console.error("Order confirmation email failed:", emailErr);
+        }
 
         return json({
             success: true,
