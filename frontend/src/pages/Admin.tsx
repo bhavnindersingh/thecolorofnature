@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback } from 'react'
 import { useQueryClient, useQuery } from '@tanstack/react-query'
 import {
     RefreshCw, LogOut, ChevronDown, ChevronUp,
-    CheckCircle, XCircle, AlertTriangle, Truck, Clock, Package, FileText, Search
+    CheckCircle, XCircle, AlertTriangle, Truck, Clock, Package, Search
 } from 'lucide-react'
 import { supabase } from '../lib/supabase'
 
