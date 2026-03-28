@@ -397,3 +397,32 @@ entrypoint = "./functions/sync-to-odoo/index.ts"
 # Specifies static files to be bundled with the function. Supports glob patterns.
 # For example, if you want to serve static HTML pages in your function:
 # static_files = [ "./functions/sync-to-odoo/*.html" ]
+
+[functions.confirm-order]
+enabled = true
+verify_jwt = true
+entrypoint = "./functions/confirm-order/index.ts"
+import_map = "./functions/confirm-order/deno.json"
+
+[functions.odoo-webhook]
+enabled = true
+verify_jwt = false
+entrypoint = "./functions/odoo-webhook/index.ts"
+import_map = "./functions/odoo-webhook/deno.json"
+
+[functions.admin]
+enabled = true
+verify_jwt = false
+entrypoint = "./functions/admin/index.ts"
+
+[functions.odoo-poll]
+enabled = true
+verify_jwt = false
+entrypoint = "./functions/odoo-poll/index.ts"
+import_map = "./functions/odoo-poll/deno.json"
+
+[functions.sync-products]
+enabled = true
+verify_jwt = false
+entrypoint = "./functions/sync-products/index.ts"
+import_map = "./functions/sync-products/deno.json"
