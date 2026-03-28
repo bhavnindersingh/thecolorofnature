@@ -1,22 +1,34 @@
 import { useState, useEffect, useCallback } from 'react'
-import { useQueryClient, useQuery, useMutation } from '@tanstack/react-query'
+import { useQueryClient, useQuery } from '@tanstack/react-query'
 import {
     RefreshCw, LogOut, ChevronDown, ChevronUp,
-    CheckCircle, XCircle, AlertTriangle, Truck, Clock, Package
+    CheckCircle, XCircle, AlertTriangle, Truck, Clock, Package, FileText, Search
 } from 'lucide-react'
 import { supabase } from '../lib/supabase'
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
 type OrderStatus = 'pending' | 'paid' | 'processing' | 'shipped' | 'delivered' | 'cancelled'
-type ReturnStatus = 'pending' | 'approved' | 'rejected' | 'completed'
+type ReturnStatus = 'pending' | 'approved' | 'item_shipped' | 'item_received' | 'rejected' | 'completed'
 
 interface AdminReturnRequest {
     id: string
     status: ReturnStatus
     reason: string
     admin_note: string | null
+    return_instructions: string | null
     odoo_return_id: number | null
+    created_at: string
+    updated_at: string
+}
+
+interface EventLogEntry {
+    id: number
+    event_type: string
+    entity_type: string
+    entity_id: string | null
+    details: Record<string, unknown>
+    actor: string
     created_at: string
 }
 
@@ -49,7 +61,7 @@ interface AdminOrder {
     } | null
 }
 
-type Tab = 'all' | 'failed_odoo' | 'pending_returns'
+type Tab = 'all' | 'failed_odoo' | 'pending_returns' | 'event_log'
 type InlineForm = 'status' | 'tracking' | 'confirm_cancel' | 'return' | 'sync_log' | null
 
 // ─── Constants ────────────────────────────────────────────────────────────────
@@ -186,11 +198,12 @@ function OrderRow({ order, onRefresh }: { order: AdminOrder; onRefresh: () => vo
     const [trackingNum, setTrackingNum] = useState(order.tracking_number ?? '')
     const [estDelivery, setEstDelivery] = useState(order.estimated_delivery ?? '')
     const [returnNote, setReturnNote] = useState('')
+    const [returnInstructions, setReturnInstructions] = useState('')
     const [syncLog, setSyncLog] = useState<string[]>([])
     const [busy, setBusy] = useState(false)
     const [msg, setMsg] = useState<{ text: string; ok: boolean } | null>(null)
 
-    const hasPendingReturn = order.return_requests.some(r => r.status === 'pending')
+    const hasActiveReturn = order.return_requests.some(r => !['completed', 'rejected'].includes(r.status))
 
     function showMsg(text: string, ok: boolean) {
         setMsg({ text, ok })
@@ -248,9 +261,30 @@ function OrderRow({ order, onRefresh }: { order: AdminOrder; onRefresh: () => vo
 
     async function handleReturn(action: 'approve' | 'reject', returnId: string) {
         await run(async () => {
-            await adminCall('handle_return', { return_request_id: returnId, action, admin_note: returnNote || undefined })
+            await adminCall('handle_return', {
+                return_request_id: returnId,
+                action,
+                admin_note: returnNote || undefined,
+                return_instructions: action === 'approve' ? (returnInstructions || undefined) : undefined,
+            })
             setActiveForm(null)
+            setReturnNote('')
+            setReturnInstructions('')
             showMsg(`Return ${action}d.`, true)
+        })
+    }
+
+    async function handleMarkReturnReceived(returnId: string) {
+        await run(async () => {
+            await adminCall('mark_return_received', { return_request_id: returnId })
+            showMsg('Return marked as received. Odoo stock return created.', true)
+        })
+    }
+
+    async function handleCompleteReturn(returnId: string) {
+        await run(async () => {
+            await adminCall('complete_return', { return_request_id: returnId })
+            showMsg('Return completed.', true)
         })
     }
 
@@ -333,7 +367,7 @@ function OrderRow({ order, onRefresh }: { order: AdminOrder; onRefresh: () => vo
                             Push Odoo
                         </button>
                     )}
-                    {hasPendingReturn && (
+                    {hasActiveReturn && (
                         <span style={{ fontSize: '0.7rem', background: '#fde8e8', color: '#8c3a3a', padding: '0.15rem 0.4rem', border: '1px solid #f5b8b8' }}>
                             Return
                         </span>
@@ -498,41 +532,87 @@ function OrderRow({ order, onRefresh }: { order: AdminOrder; onRefresh: () => vo
                     {order.return_requests.length > 0 && (
                         <div>
                             <h4 style={sectionHead}>Return Requests</h4>
-                            {order.return_requests.map(r => (
-                                <div key={r.id} style={{ border: '1px solid var(--border)', padding: '0.75rem 1rem', marginBottom: '0.5rem', fontSize: '0.82rem' }}>
-                                    <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '0.4rem' }}>
-                                        <span className={`status-badge badge-${r.status}`}>{r.status}</span>
-                                        <span style={{ color: 'var(--ink-muted)' }}>{fmtDate(r.created_at)}</span>
+                            {order.return_requests.map(r => {
+                                const RETURN_STATUS_LABELS: Record<string, string> = {
+                                    pending: 'Pending', approved: 'Approved', item_shipped: 'Item Shipped',
+                                    item_received: 'Item Received', rejected: 'Rejected', completed: 'Completed',
+                                }
+                                return (
+                                    <div key={r.id} style={{ border: '1px solid var(--border)', padding: '0.75rem 1rem', marginBottom: '0.5rem', fontSize: '0.82rem' }}>
+                                        <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '0.4rem' }}>
+                                            <span className={`status-badge badge-${r.status === 'item_shipped' ? 'shipped' : r.status === 'item_received' ? 'processing' : r.status}`}>
+                                                {RETURN_STATUS_LABELS[r.status] ?? r.status}
+                                            </span>
+                                            <span style={{ color: 'var(--ink-muted)' }}>{fmtDate(r.created_at)}</span>
+                                        </div>
+                                        <p style={{ margin: '0 0 0.4rem', color: 'var(--ink-mid)' }}><strong>Reason:</strong> {r.reason}</p>
+                                        {r.admin_note && <p style={{ margin: '0 0 0.4rem', color: 'var(--ink-mid)' }}><strong>Admin note:</strong> {r.admin_note}</p>}
+                                        {r.return_instructions && <p style={{ margin: '0 0 0.4rem', color: 'var(--ink-mid)' }}><strong>Instructions sent:</strong> {r.return_instructions}</p>}
+                                        {r.odoo_return_id && <p style={{ margin: '0', color: 'var(--ink-muted)' }}>Odoo return ID: {r.odoo_return_id}</p>}
+
+                                        {/* Pending: approve/reject */}
+                                        {r.status === 'pending' && (
+                                            <>
+                                                {activeForm === 'return' ? (
+                                                    <InlinePanel title="Handle Return" onClose={() => setActiveForm(null)}>
+                                                        <div className="form-group">
+                                                            <label className="form-label">Return Instructions (sent to customer via email)</label>
+                                                            <textarea className="form-input" rows={3} value={returnInstructions} onChange={e => setReturnInstructions(e.target.value)} placeholder="Ship the item to: ... Please include the original packaging." />
+                                                        </div>
+                                                        <div className="form-group">
+                                                            <label className="form-label">Admin Note (optional, internal)</label>
+                                                            <textarea className="form-input" rows={2} value={returnNote} onChange={e => setReturnNote(e.target.value)} placeholder="Internal note…" />
+                                                        </div>
+                                                        <div style={{ display: 'flex', gap: '0.5rem' }}>
+                                                            <button className="btn btn-sm btn-primary" disabled={busy} onClick={() => handleReturn('approve', r.id)}>
+                                                                {busy ? 'Processing…' : 'Approve & Send Email'}
+                                                            </button>
+                                                            <button className="btn btn-sm btn-ghost" disabled={busy} style={{ color: '#8c3a3a' }} onClick={() => handleReturn('reject', r.id)}>
+                                                                Reject
+                                                            </button>
+                                                        </div>
+                                                    </InlinePanel>
+                                                ) : (
+                                                    <button className="btn btn-sm btn-outline" style={{ marginTop: '0.5rem' }} onClick={() => setActiveForm('return')}>
+                                                        Handle Return
+                                                    </button>
+                                                )}
+                                            </>
+                                        )}
+
+                                        {/* Approved: waiting for customer to ship */}
+                                        {r.status === 'approved' && (
+                                            <div style={{ marginTop: '0.5rem', color: 'var(--ink-muted)', fontSize: '0.8rem' }}>
+                                                Waiting for customer to ship the item back.
+                                            </div>
+                                        )}
+
+                                        {/* Item shipped: admin can mark received */}
+                                        {r.status === 'item_shipped' && (
+                                            <button
+                                                className="btn btn-sm btn-primary"
+                                                style={{ marginTop: '0.5rem' }}
+                                                disabled={busy}
+                                                onClick={() => handleMarkReturnReceived(r.id)}
+                                            >
+                                                {busy ? 'Processing…' : 'Mark as Received'}
+                                            </button>
+                                        )}
+
+                                        {/* Item received: admin can complete */}
+                                        {r.status === 'item_received' && (
+                                            <button
+                                                className="btn btn-sm btn-primary"
+                                                style={{ marginTop: '0.5rem' }}
+                                                disabled={busy}
+                                                onClick={() => handleCompleteReturn(r.id)}
+                                            >
+                                                {busy ? 'Processing…' : 'Complete Return'}
+                                            </button>
+                                        )}
                                     </div>
-                                    <p style={{ margin: '0 0 0.4rem', color: 'var(--ink-mid)' }}><strong>Reason:</strong> {r.reason}</p>
-                                    {r.admin_note && <p style={{ margin: '0 0 0.4rem', color: 'var(--ink-mid)' }}><strong>Admin note:</strong> {r.admin_note}</p>}
-                                    {r.odoo_return_id && <p style={{ margin: '0', color: 'var(--ink-muted)' }}>Odoo return ID: {r.odoo_return_id}</p>}
-                                    {r.status === 'pending' && (
-                                        <>
-                                            {activeForm === 'return' ? (
-                                                <InlinePanel title="Handle Return" onClose={() => setActiveForm(null)}>
-                                                    <div className="form-group">
-                                                        <label className="form-label">Admin Note (optional)</label>
-                                                        <textarea className="form-input" rows={2} value={returnNote} onChange={e => setReturnNote(e.target.value)} placeholder="Message to customer or internal note…" />
-                                                    </div>
-                                                    <div style={{ display: 'flex', gap: '0.5rem' }}>
-                                                        <button className="btn btn-sm btn-primary" disabled={busy} onClick={() => handleReturn('approve', r.id)}>
-                                                            {busy ? 'Processing…' : 'Approve Return'}
-                                                        </button>
-                                                        <button className="btn btn-sm btn-ghost" disabled={busy} style={{ color: '#8c3a3a' }} onClick={() => handleReturn('reject', r.id)}>
-                                                            Reject
-                                                        </button>
-                                                    </div>
-                                                </InlinePanel>
-                                            ) : (
-                                                <button className="btn btn-sm btn-outline" style={{ marginTop: '0.5rem' }} onClick={() => setActiveForm('return')}>
-                                                    Handle Return
-                                                </button>
-                                            )}
-                                        </>
-                                    )}
-                                </div>
-                            ))}
+                                )
+                            })}
                         </div>
                     )}
 
@@ -560,6 +640,113 @@ function InlinePanel({ title, onClose, children }: { title: string; onClose: () 
                 <button onClick={onClose} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--ink-muted)', fontSize: '1rem' }}>×</button>
             </div>
             {children}
+        </div>
+    )
+}
+
+// ─── Event Log Panel ─────────────────────────────────────────────────────────
+
+function EventLogPanel() {
+    const [entityFilter, setEntityFilter] = useState('')
+    const [searchId, setSearchId] = useState('')
+
+    const { data: events = [], isLoading, refetch } = useQuery({
+        queryKey: ['admin-events', entityFilter, searchId],
+        queryFn: async () => {
+            const payload: Record<string, unknown> = { limit: 100 }
+            if (entityFilter) payload.entity_type = entityFilter
+            if (searchId.trim()) payload.entity_id = searchId.trim()
+            const res = await adminCall<{ success: boolean; events: EventLogEntry[] }>('list_events', payload)
+            return res.events
+        },
+        staleTime: 15_000,
+    })
+
+    const EVENT_TYPE_COLORS: Record<string, string> = {
+        'order': '#3a6a3a',
+        'return': '#6a3a6a',
+        'webhook': '#3a3a6a',
+        'product_sync': '#6a5a3a',
+    }
+
+    function eventColor(entityType: string) {
+        return EVENT_TYPE_COLORS[entityType] ?? 'var(--ink-mid)'
+    }
+
+    return (
+        <div style={{ padding: '1.25rem 0' }}>
+            {/* Filters */}
+            <div style={{ display: 'flex', gap: '0.75rem', marginBottom: '1rem', flexWrap: 'wrap', alignItems: 'center' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
+                    <Search size={14} color="var(--ink-muted)" />
+                    <input
+                        className="form-input"
+                        style={{ width: 220, fontSize: '0.82rem', padding: '0.35rem 0.5rem' }}
+                        placeholder="Search by entity ID..."
+                        value={searchId}
+                        onChange={e => setSearchId(e.target.value)}
+                    />
+                </div>
+                <select
+                    className="form-input"
+                    style={{ width: 160, fontSize: '0.82rem', padding: '0.35rem 0.5rem' }}
+                    value={entityFilter}
+                    onChange={e => setEntityFilter(e.target.value)}
+                >
+                    <option value="">All Types</option>
+                    <option value="order">Orders</option>
+                    <option value="return">Returns</option>
+                    <option value="product_sync">Product Sync</option>
+                </select>
+                <button onClick={() => refetch()} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--ink-muted)' }} title="Refresh">
+                    <RefreshCw size={14} strokeWidth={1.5} />
+                </button>
+            </div>
+
+            {isLoading && (
+                <div style={{ padding: '2rem', textAlign: 'center', color: 'var(--ink-muted)', fontSize: '0.85rem' }}>
+                    Loading events...
+                </div>
+            )}
+
+            {!isLoading && events.length === 0 && (
+                <div style={{ padding: '2rem', textAlign: 'center', color: 'var(--ink-muted)', fontSize: '0.85rem' }}>
+                    No events found.
+                </div>
+            )}
+
+            {!isLoading && events.length > 0 && (
+                <div style={{ background: 'var(--surface)', border: '1px solid var(--border)' }}>
+                    {events.map(event => (
+                        <div key={event.id} style={{ borderBottom: '1px solid var(--border)', padding: '0.65rem 1rem', fontSize: '0.82rem', display: 'flex', gap: '0.75rem', alignItems: 'flex-start' }}>
+                            <span style={{ color: 'var(--ink-muted)', fontSize: '0.75rem', whiteSpace: 'nowrap', minWidth: 120 }}>
+                                {new Date(event.created_at).toLocaleString('en-IN', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' })}
+                            </span>
+                            <span style={{
+                                fontSize: '0.7rem', padding: '0.1rem 0.4rem', border: `1px solid ${eventColor(event.entity_type)}40`,
+                                color: eventColor(event.entity_type), background: `${eventColor(event.entity_type)}10`,
+                                whiteSpace: 'nowrap',
+                            }}>
+                                {event.event_type}
+                            </span>
+                            {event.entity_id && (
+                                <span style={{ fontFamily: 'monospace', fontSize: '0.75rem', color: 'var(--ink-muted)' }}>
+                                    {event.entity_id.slice(0, 8)}
+                                </span>
+                            )}
+                            <span style={{ color: 'var(--ink-mid)', flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                                {Object.entries(event.details)
+                                    .filter(([, v]) => v != null && v !== '')
+                                    .map(([k, v]) => `${k}: ${typeof v === 'object' ? JSON.stringify(v) : v}`)
+                                    .join(' | ') || '—'}
+                            </span>
+                            <span style={{ fontSize: '0.72rem', color: 'var(--ink-muted)', whiteSpace: 'nowrap' }}>
+                                {event.actor}
+                            </span>
+                        </div>
+                    ))}
+                </div>
+            )}
         </div>
     )
 }
@@ -598,7 +785,7 @@ function AdminDashboard({ onLogout }: { onLogout: () => void }) {
     }, [queryClient])
 
     const displayOrders = activeTab === 'pending_returns'
-        ? orders.filter(o => o.return_requests.some(r => r.status === 'pending'))
+        ? orders.filter(o => o.return_requests.some(r => !['completed', 'rejected'].includes(r.status)))
         : orders
 
     async function handleSyncProducts() {
@@ -617,7 +804,8 @@ function AdminDashboard({ onLogout }: { onLogout: () => void }) {
     const tabs: { id: Tab; label: string; count?: number }[] = [
         { id: 'all', label: 'All Orders', count: orders.length },
         { id: 'failed_odoo', label: 'Failed Syncs', count: activeTab === 'failed_odoo' ? orders.length : undefined },
-        { id: 'pending_returns', label: 'Pending Returns', count: orders.filter(o => o.return_requests.some(r => r.status === 'pending')).length || undefined },
+        { id: 'pending_returns', label: 'Active Returns', count: orders.filter(o => o.return_requests.some(r => !['completed', 'rejected'].includes(r.status))).length || undefined },
+        { id: 'event_log', label: 'Event Log' },
     ]
 
     return (
@@ -694,55 +882,63 @@ function AdminDashboard({ onLogout }: { onLogout: () => void }) {
                     </div>
                 </div>
 
-                {/* ── Table header ── */}
-                {!isLoading && !isError && (
-                    <div style={{
-                        display: 'grid',
-                        gridTemplateColumns: '110px 1fr 90px 140px 90px 100px 60px 130px',
-                        padding: '0.5rem 1rem',
-                        background: 'var(--bg-alt)',
-                        borderBottom: '1px solid var(--border)',
-                        fontSize: '0.72rem',
-                        fontWeight: 600,
-                        letterSpacing: '0.06em',
-                        textTransform: 'uppercase',
-                        color: 'var(--ink-muted)',
-                        gap: '0.5rem',
-                    }}>
-                        <span>Order</span>
-                        <span>Customer</span>
-                        <span>Date</span>
-                        <span>Items</span>
-                        <span>Total</span>
-                        <span>Status</span>
-                        <span>Odoo</span>
-                        <span>Actions</span>
-                    </div>
-                )}
+                {/* ── Event Log Tab ── */}
+                {activeTab === 'event_log' && <EventLogPanel />}
 
-                {/* ── States ── */}
-                {isLoading && (
-                    <div style={{ padding: '3rem', textAlign: 'center', color: 'var(--ink-muted)', fontSize: '0.85rem' }}>
-                        Loading orders…
-                    </div>
-                )}
-                {isError && (
-                    <div style={{ padding: '3rem', textAlign: 'center', color: '#8c3a3a', fontSize: '0.85rem' }}>
-                        Failed to load orders. <button className="btn btn-ghost" onClick={() => refetch()}>Retry</button>
-                    </div>
-                )}
-                {!isLoading && !isError && displayOrders.length === 0 && (
-                    <div style={{ padding: '3rem', textAlign: 'center', color: 'var(--ink-muted)', fontSize: '0.85rem' }}>
-                        No orders in this view.
-                    </div>
-                )}
+                {/* ── Orders Tabs ── */}
+                {activeTab !== 'event_log' && (
+                    <>
+                        {/* ── Table header ── */}
+                        {!isLoading && !isError && (
+                            <div style={{
+                                display: 'grid',
+                                gridTemplateColumns: '110px 1fr 90px 140px 90px 100px 60px 130px',
+                                padding: '0.5rem 1rem',
+                                background: 'var(--bg-alt)',
+                                borderBottom: '1px solid var(--border)',
+                                fontSize: '0.72rem',
+                                fontWeight: 600,
+                                letterSpacing: '0.06em',
+                                textTransform: 'uppercase',
+                                color: 'var(--ink-muted)',
+                                gap: '0.5rem',
+                            }}>
+                                <span>Order</span>
+                                <span>Customer</span>
+                                <span>Date</span>
+                                <span>Items</span>
+                                <span>Total</span>
+                                <span>Status</span>
+                                <span>Odoo</span>
+                                <span>Actions</span>
+                            </div>
+                        )}
 
-                {/* ── Order rows ── */}
-                <div style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderTop: 'none' }}>
-                    {displayOrders.map(order => (
-                        <OrderRow key={order.id} order={order} onRefresh={handleRefresh} />
-                    ))}
-                </div>
+                        {/* ── States ── */}
+                        {isLoading && (
+                            <div style={{ padding: '3rem', textAlign: 'center', color: 'var(--ink-muted)', fontSize: '0.85rem' }}>
+                                Loading orders...
+                            </div>
+                        )}
+                        {isError && (
+                            <div style={{ padding: '3rem', textAlign: 'center', color: '#8c3a3a', fontSize: '0.85rem' }}>
+                                Failed to load orders. <button className="btn btn-ghost" onClick={() => refetch()}>Retry</button>
+                            </div>
+                        )}
+                        {!isLoading && !isError && displayOrders.length === 0 && (
+                            <div style={{ padding: '3rem', textAlign: 'center', color: 'var(--ink-muted)', fontSize: '0.85rem' }}>
+                                No orders in this view.
+                            </div>
+                        )}
+
+                        {/* ── Order rows ── */}
+                        <div style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderTop: 'none' }}>
+                            {displayOrders.map(order => (
+                                <OrderRow key={order.id} order={order} onRefresh={handleRefresh} />
+                            ))}
+                        </div>
+                    </>
+                )}
             </div>
 
             <style>{`
