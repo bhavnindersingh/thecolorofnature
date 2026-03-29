@@ -4,7 +4,7 @@ import PlacesAutocomplete from '../components/PlacesAutocomplete'
 import type { User } from '@supabase/supabase-js'
 import {
     supabase,
-    getMyOrders, getMyReturns, createReturnRequest, markReturnShipped,
+    getMyOrders, getMyReturns, createReturnRequest, markReturnShipped, cancelOrder,
     getMyWishlist, removeFromWishlist,
     getMyProfile, updateMyProfile,
     getMyAddresses, addAddress, deleteAddress, setDefaultAddress,
@@ -64,11 +64,25 @@ function fmtDate(iso: string, opts?: Intl.DateTimeFormatOptions) {
     return new Date(iso).toLocaleDateString('en-IN', opts ?? { day: 'numeric', month: 'short', year: 'numeric' })
 }
 
+// ─── Return window helper ────────────────────────────────────────────────────
+const RETURN_WINDOW_DAYS = 7
+
+function getReturnWindowInfo(order: Order): { canReturn: boolean; daysLeft: number; message: string } {
+    if (!order.delivered_at) return { canReturn: false, daysLeft: 0, message: 'Delivery date not recorded' }
+    const deliveredMs = new Date(order.delivered_at).getTime()
+    const windowEndMs = deliveredMs + RETURN_WINDOW_DAYS * 24 * 60 * 60 * 1000
+    const nowMs = Date.now()
+    const daysLeft = Math.ceil((windowEndMs - nowMs) / (24 * 60 * 60 * 1000))
+    if (daysLeft <= 0) return { canReturn: false, daysLeft: 0, message: 'Return window has closed' }
+    return { canReturn: true, daysLeft, message: `${daysLeft} day${daysLeft === 1 ? '' : 's'} left to return` }
+}
+
 // ─── Orders Tab ───────────────────────────────────────────────────────────────
 function OrdersTab() {
     const [expandedOrder, setExpandedOrder] = useState<string | null>(null)
     const [returnOrderId, setReturnOrderId] = useState<string | null>(null)
     const [returnReason, setReturnReason] = useState('')
+    const [cancelConfirmId, setCancelConfirmId] = useState<string | null>(null)
     const queryClient = useQueryClient()
 
     const { data: orders, isLoading, error } = useQuery({
@@ -89,6 +103,14 @@ function OrdersTab() {
             queryClient.invalidateQueries({ queryKey: ['my-returns'] })
             setReturnOrderId(null)
             setReturnReason('')
+        },
+    })
+
+    const cancelMutation = useMutation({
+        mutationFn: (orderId: string) => cancelOrder(orderId),
+        onSuccess: () => {
+            queryClient.invalidateQueries({ queryKey: ['my-orders'] })
+            setCancelConfirmId(null)
         },
     })
 
@@ -185,39 +207,77 @@ function OrdersTab() {
                                 </div>
                             )}
 
-                            {/* Return */}
-                            {(order.status === 'delivered' || order.status === 'shipped') && !order.return_requests?.length && (
+                            {/* Cancel Order */}
+                            {['pending', 'paid', 'processing'].includes(order.status) && (
                                 <div className="order-detail-section">
-                                    {returnOrderId === order.id ? (
-                                        <div className="return-form">
-                                            <div className="order-detail-label">Reason for Return</div>
-                                            <textarea
-                                                className="form-input"
-                                                placeholder="Please describe why you'd like to return this order…"
-                                                value={returnReason}
-                                                onChange={(e) => setReturnReason(e.target.value)}
-                                                rows={3}
-                                            />
-                                            <div className="return-form-actions">
-                                                <button
-                                                    className="btn btn-primary btn-sm"
-                                                    disabled={!returnReason.trim() || returnMutation.isPending}
-                                                    onClick={() => returnMutation.mutate({ orderId: order.id, reason: returnReason })}
-                                                >
-                                                    {returnMutation.isPending ? 'Submitting…' : 'Submit Return'}
-                                                </button>
-                                                <button className="btn btn-ghost btn-sm" onClick={() => { setReturnOrderId(null); setReturnReason('') }}>
-                                                    Cancel
-                                                </button>
-                                            </div>
+                                    {cancelConfirmId === order.id ? (
+                                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                                            <span style={{ fontSize: '0.85rem' }}>Cancel this order?</span>
+                                            <button
+                                                className="btn btn-primary btn-sm"
+                                                style={{ background: '#c53030', borderColor: '#c53030' }}
+                                                disabled={cancelMutation.isPending}
+                                                onClick={() => cancelMutation.mutate(order.id)}
+                                            >
+                                                {cancelMutation.isPending ? 'Cancelling…' : 'Yes, Cancel'}
+                                            </button>
+                                            <button className="btn btn-ghost btn-sm" onClick={() => setCancelConfirmId(null)}>No</button>
                                         </div>
                                     ) : (
-                                        <button className="btn btn-outline btn-sm" onClick={() => setReturnOrderId(order.id)}>
-                                            <RotateCcw size={12} /> Request Return
+                                        <button className="btn btn-outline btn-sm" onClick={() => setCancelConfirmId(order.id)}>
+                                            <XCircle size={12} /> Cancel Order
                                         </button>
                                     )}
                                 </div>
                             )}
+
+                            {/* Return — only for delivered orders within 7-day window */}
+                            {order.status === 'delivered' && !order.return_requests?.length && (() => {
+                                const { canReturn, daysLeft, message } = getReturnWindowInfo(order)
+                                return (
+                                    <div className="order-detail-section">
+                                        {canReturn ? (
+                                            <>
+                                                <div style={{ fontSize: '0.8rem', color: 'var(--sage)', marginBottom: '0.5rem' }}>
+                                                    <Clock size={12} /> {daysLeft} day{daysLeft === 1 ? '' : 's'} left to request a return
+                                                </div>
+                                                {returnOrderId === order.id ? (
+                                                    <div className="return-form">
+                                                        <div className="order-detail-label">Reason for Return</div>
+                                                        <textarea
+                                                            className="form-input"
+                                                            placeholder="Please describe why you'd like to return this order…"
+                                                            value={returnReason}
+                                                            onChange={(e) => setReturnReason(e.target.value)}
+                                                            rows={3}
+                                                        />
+                                                        <div className="return-form-actions">
+                                                            <button
+                                                                className="btn btn-primary btn-sm"
+                                                                disabled={!returnReason.trim() || returnMutation.isPending}
+                                                                onClick={() => returnMutation.mutate({ orderId: order.id, reason: returnReason })}
+                                                            >
+                                                                {returnMutation.isPending ? 'Submitting…' : 'Submit Return'}
+                                                            </button>
+                                                            <button className="btn btn-ghost btn-sm" onClick={() => { setReturnOrderId(null); setReturnReason('') }}>
+                                                                Cancel
+                                                            </button>
+                                                        </div>
+                                                    </div>
+                                                ) : (
+                                                    <button className="btn btn-outline btn-sm" onClick={() => setReturnOrderId(order.id)}>
+                                                        <RotateCcw size={12} /> Request Return
+                                                    </button>
+                                                )}
+                                            </>
+                                        ) : (
+                                            <div style={{ fontSize: '0.82rem', color: '#8494a7' }}>
+                                                {message}
+                                            </div>
+                                        )}
+                                    </div>
+                                )
+                            })()}
 
                             {/* Existing return status */}
                             {!!order.return_requests?.length && (

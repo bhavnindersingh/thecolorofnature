@@ -96,6 +96,7 @@ export interface Order {
     carrier: string | null
     estimated_delivery: string | null
     odoo_picking_name: string | null
+    delivered_at: string | null
     created_at: string
     updated_at: string
     // Joined fields
@@ -436,6 +437,12 @@ export const triggerProductSync = () =>
 /** Confirm order payment (dummy) and sync to Odoo */
 export const confirmOrderPayment = (orderId: string) =>
     supabase.functions.invoke('confirm-order', {
+        body: { order_id: orderId },
+    })
+
+/** Cancel an order (customer-facing) */
+export const cancelOrder = (orderId: string) =>
+    supabase.functions.invoke('cancel-order', {
         body: { order_id: orderId },
     })
 

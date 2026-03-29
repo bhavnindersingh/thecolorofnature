@@ -88,12 +88,22 @@ function getPin() {
 
 async function adminCall<T = unknown>(action: string, payload: Record<string, unknown> = {}): Promise<T> {
     const pin = getPin()
-    const { data, error } = await supabase.functions.invoke('admin', {
+    const { data, error, response } = await supabase.functions.invoke('admin', {
         body: { action, payload },
         headers: { Authorization: `Bearer ${pin}` },
     })
     if (error) {
-        const msg = (error as { message?: string }).message ?? 'Request failed'
+        let msg = 'Request failed'
+        if (response) {
+            try {
+                const body = await response.json()
+                msg = body?.error ?? msg
+            } catch {
+                msg = (error as { message?: string }).message ?? msg
+            }
+        } else {
+            msg = (error as { message?: string }).message ?? msg
+        }
         if (msg.includes('401') || msg.toLowerCase().includes('unauthorized')) {
             sessionStorage.removeItem(SESSION_KEY)
             window.location.reload()
