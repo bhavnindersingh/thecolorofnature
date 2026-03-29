@@ -91,7 +91,8 @@ serve(async (req) => {
                 order_items (
                     quantity, unit_price,
                     product:products (
-                        product_variants ( odoo_variant_id )
+                        name,
+                        product_variants ( id, odoo_variant_id, stock_quantity )
                     )
                 )
             `,
@@ -108,6 +109,29 @@ serve(async (req) => {
                 { error: `Order status is '${order.status}', expected 'pending'` },
                 400,
             );
+
+        // 1b. Stock validation — reject if any item exceeds available stock
+        type StockItem = {
+            quantity: number;
+            product: { name: string; product_variants: Array<{ id: number; stock_quantity: number }> } | null;
+        };
+        const stockErrors: string[] = [];
+        for (const item of order.order_items as StockItem[]) {
+            if (!item.product) continue;
+            const totalStock = item.product.product_variants.reduce(
+                (s, v) => s + v.stock_quantity, 0,
+            );
+            if (item.quantity > totalStock) {
+                stockErrors.push(
+                    totalStock === 0
+                        ? `${item.product.name} is out of stock`
+                        : `${item.product.name}: only ${totalStock} available, ordered ${item.quantity}`,
+                );
+            }
+        }
+        if (stockErrors.length > 0) {
+            return json({ error: stockErrors.join(". ") }, 400);
+        }
 
         // 2. Mark as paid (dummy payment)
         const paymentId = `dummy_${Date.now()}`;

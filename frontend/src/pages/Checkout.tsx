@@ -2,9 +2,9 @@ import { useState, useEffect } from 'react'
 import { useNavigate, Link } from 'react-router-dom'
 import { useQuery, useMutation } from '@tanstack/react-query'
 import { MapPin, CheckCircle, AlertCircle, ChevronDown, Package, CreditCard, Lock, ArrowLeft } from 'lucide-react'
-import { getMyAddresses, createOrder, confirmOrderPayment, addAddress } from '../lib/supabase'
+import { getMyAddresses, createOrder, confirmOrderPayment, addAddress, supabase } from '../lib/supabase'
 import PlacesAutocomplete from '../components/PlacesAutocomplete'
-import type { Address, Product } from '../lib/supabase'
+import type { Address, Product, ProductVariant } from '../lib/supabase'
 import { useAuth } from '../contexts/AuthContext'
 
 interface CartItem extends Product {
@@ -217,6 +217,33 @@ export default function Checkout() {
                 postal_code:     String(selectedAddr.postal_code ?? ''),
                 country:         String(selectedAddr.country ?? 'India'),
                 phone:           String((selectedAddr as Address).phone ?? ''),
+            }
+
+            // Stock validation — check current stock for all products
+            const productIds = items.map(i => i.id)
+            const { data: freshProducts } = await supabase
+                .from('products')
+                .select('id, name, product_variants(id, stock_quantity)')
+                .in('id', productIds)
+
+            if (freshProducts) {
+                const outOfStock: string[] = []
+                for (const item of items) {
+                    const prod = freshProducts.find(p => p.id === item.id)
+                    if (!prod) continue
+                    const variants = (prod.product_variants ?? []) as ProductVariant[]
+                    const totalStock = variants.reduce((s, v) => s + v.stock_quantity, 0)
+                    if (item.qty > totalStock) {
+                        outOfStock.push(
+                            totalStock === 0
+                                ? `${prod.name} is out of stock`
+                                : `${prod.name}: only ${totalStock} available (you have ${item.qty})`
+                        )
+                    }
+                }
+                if (outOfStock.length > 0) {
+                    throw new Error(outOfStock.join('. '))
+                }
             }
 
             const orderItems = items.map((i) => ({
