@@ -20,7 +20,7 @@ import Returns from './pages/Returns'
 import Process from './pages/Process'
 import Privacy from './pages/Privacy'
 import Admin from './pages/Admin'
-import './index.css'
+
 
 const queryClient = new QueryClient()
 

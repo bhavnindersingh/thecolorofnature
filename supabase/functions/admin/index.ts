@@ -1,13 +1,19 @@
 import { serve } from "https://deno.land/std@0.177.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
-import { sendEmail, buildReturnApprovalEmail, buildReturnRejectedEmail, buildReturnCompletedEmail, buildOrderShippedEmail } from "../_shared/email.ts";
+import { sendEmail, buildReturnApprovalEmail, buildReturnRejectedEmail, buildReturnCompletedEmail, buildOrderShippedEmail, buildOrderCancelledEmail, buildOrderDeliveredEmail } from "../_shared/email.ts";
 
 // ─── Environment ─────────────────────────────────────────────────────────────
 
-const ADMIN_PIN = Deno.env.get("ADMIN_PIN")!;
-const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
-const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
-const SUPABASE_ANON_KEY = Deno.env.get("SUPABASE_ANON_KEY")!;
+function requireEnv(name: string): string {
+    const val = Deno.env.get(name);
+    if (!val) throw new Error(`Missing required env var: ${name}`);
+    return val;
+}
+
+const ADMIN_PIN = requireEnv("ADMIN_PIN");
+const SUPABASE_URL = requireEnv("SUPABASE_URL");
+const SUPABASE_SERVICE_ROLE_KEY = requireEnv("SUPABASE_SERVICE_ROLE_KEY");
+const SUPABASE_ANON_KEY = requireEnv("SUPABASE_ANON_KEY");
 
 // ─── CORS ─────────────────────────────────────────────────────────────────────
 
@@ -35,6 +41,10 @@ async function callFunction(name: string, body: unknown): Promise<unknown> {
         },
         body: JSON.stringify(body),
     });
+    if (!resp.ok) {
+        const text = await resp.text().catch(() => resp.statusText);
+        throw new Error(`Function ${name} returned ${resp.status}: ${text}`);
+    }
     return resp.json();
 }
 
@@ -86,8 +96,10 @@ async function listOrders(supabase: ReturnType<typeof createClient>, filter?: st
     const uniqueUserIds = [...new Set((orders ?? []).map((o: { user_id: string }) => o.user_id).filter(Boolean))];
     let emailMap = new Map<string, string>();
     if (uniqueUserIds.length > 0) {
-        const { data: emails } = await supabase.rpc("get_user_emails", { user_ids: uniqueUserIds });
-        if (emails) {
+        const { data: emails, error: rpcError } = await supabase.rpc("get_user_emails", { user_ids: uniqueUserIds });
+        if (rpcError) {
+            console.error("get_user_emails RPC failed:", rpcError.message);
+        } else if (emails) {
             emailMap = new Map((emails as Array<{ id: string; email: string }>).map((e) => [e.id, e.email]));
         }
     }
@@ -113,9 +125,13 @@ async function updateOrderStatus(
         .eq("id", order_id)
         .single();
 
+    const updateFields: Record<string, unknown> = { status, updated_at: new Date().toISOString() };
+    if (status === "delivered") {
+        updateFields.delivered_at = new Date().toISOString();
+    }
     const { error } = await supabase
         .from("orders")
-        .update({ status, updated_at: new Date().toISOString() })
+        .update(updateFields)
         .eq("id", order_id);
     if (error) throw new Error(error.message);
 
@@ -126,6 +142,25 @@ async function updateOrderStatus(
             note,
             changed_by: "admin",
         });
+    }
+
+    // Send delivered email
+    if (status === "delivered") {
+        try {
+            const { data: order } = await supabase.from("orders").select("user_id").eq("id", order_id).single();
+            if (order?.user_id) {
+                const { data: { user } } = await supabase.auth.admin.getUserById(order.user_id);
+                if (user?.email) {
+                    const { data: profile } = await supabase.from("profiles").select("full_name, first_name").eq("id", order.user_id).single();
+                    const customerName = profile?.full_name ?? profile?.first_name ?? "Customer";
+                    const orderRef = order_id.slice(0, 8).toUpperCase();
+                    const { subject, html } = buildOrderDeliveredEmail(customerName, orderRef);
+                    await sendEmail(user.email, subject, html);
+                }
+            }
+        } catch (emailErr) {
+            console.error("Failed to send delivered email:", emailErr);
+        }
     }
 
     await logEvent(supabase, "order.status_changed", "order", order_id, {
@@ -190,6 +225,7 @@ async function pushToOdoo(supabase: ReturnType<typeof createClient>, order_id: s
             order_items (
                 quantity, unit_price,
                 product:products (
+                    name,
                     product_variants ( odoo_variant_id )
                 )
             )
@@ -214,9 +250,13 @@ async function pushToOdoo(supabase: ReturnType<typeof createClient>, order_id: s
     type OrderItem = {
         quantity: number;
         unit_price: number;
-        product: { product_variants: Array<{ odoo_variant_id: number | null }> } | null;
+        product: { name: string; product_variants: Array<{ odoo_variant_id: number | null }> } | null;
     };
-    const items = (order.order_items as OrderItem[])
+    const allItems = (order.order_items as OrderItem[]);
+    const missingVariantNames = allItems
+        .filter((item) => !item.product?.product_variants?.[0]?.odoo_variant_id)
+        .map((item) => item.product?.name ?? "Unknown product");
+    const items = allItems
         .map((item) => ({
             odoo_variant_id: item.product?.product_variants?.[0]?.odoo_variant_id ?? null,
             quantity: item.quantity,
@@ -224,17 +264,24 @@ async function pushToOdoo(supabase: ReturnType<typeof createClient>, order_id: s
         }))
         .filter((i) => i.odoo_variant_id != null);
 
-    if (items.length === 0) throw new Error("No items with valid Odoo variant IDs");
+    if (items.length === 0) {
+        throw new Error(`Cannot sync: ${missingVariantNames.join(", ")} ${missingVariantNames.length === 1 ? "has" : "have"} no Odoo variant ID`);
+    }
 
-    const syncResult = await callFunction("sync-to-odoo", {
-        action: "sync_order",
-        payload: {
-            supabase_order_id: order.id,
-            customer_email: user.email,
-            customer_name: customerName,
-            items,
-        },
-    }) as { success: boolean; odoo_order_id?: number; error?: string };
+    let syncResult: { success: boolean; odoo_order_id?: number; error?: string };
+    try {
+        syncResult = await callFunction("sync-to-odoo", {
+            action: "sync_order",
+            payload: {
+                supabase_order_id: order.id,
+                customer_email: user.email,
+                customer_name: customerName,
+                items,
+            },
+        }) as { success: boolean; odoo_order_id?: number; error?: string };
+    } catch (err) {
+        throw new Error(`Odoo sync failed: ${(err as Error).message}`);
+    }
 
     if (!syncResult.success) throw new Error(syncResult.error ?? "sync-to-odoo failed");
 
@@ -272,6 +319,23 @@ async function cancelOrder(supabase: ReturnType<typeof createClient>, order_id: 
         .from("orders")
         .update({ status: "cancelled", updated_at: new Date().toISOString() })
         .eq("id", order_id);
+
+    // Send cancellation email
+    try {
+        const { data: orderWithUser } = await supabase.from("orders").select("user_id").eq("id", order_id).single();
+        if (orderWithUser?.user_id) {
+            const { data: { user } } = await supabase.auth.admin.getUserById(orderWithUser.user_id);
+            if (user?.email) {
+                const { data: profile } = await supabase.from("profiles").select("full_name, first_name").eq("id", orderWithUser.user_id).single();
+                const customerName = profile?.full_name ?? profile?.first_name ?? "Customer";
+                const orderRef = order_id.slice(0, 8).toUpperCase();
+                const { subject, html } = buildOrderCancelledEmail(customerName, orderRef, null);
+                await sendEmail(user.email, subject, html);
+            }
+        }
+    } catch (emailErr) {
+        console.error("Failed to send cancellation email:", emailErr);
+    }
 
     await logEvent(supabase, "order.cancelled", "order", order_id, {
         had_odoo_order: !!order.odoo_order_id,
@@ -339,7 +403,7 @@ async function handleReturn(
     let emailSent = false;
     try {
         const { data: { user } } = await supabase.auth.admin.getUserById(returnReq.user_id);
-        if (user?.email && return_instructions) {
+        if (user?.email) {
             const { data: profile } = await supabase
                 .from("profiles")
                 .select("full_name, first_name")
@@ -348,7 +412,7 @@ async function handleReturn(
             const customerName = profile?.full_name ?? profile?.first_name ?? "Customer";
             const orderRef = returnReq.order_id.slice(0, 8).toUpperCase();
 
-            const { subject, html } = buildReturnApprovalEmail(customerName, orderRef, return_instructions);
+            const { subject, html } = buildReturnApprovalEmail(customerName, orderRef, return_instructions ?? null);
             await sendEmail(user.email, subject, html);
             emailSent = true;
         }
@@ -418,7 +482,7 @@ async function completeReturn(
 ) {
     const { data: returnReq, error } = await supabase
         .from("return_requests")
-        .select("id, order_id, status")
+        .select("id, order_id, status, user_id")
         .eq("id", return_request_id)
         .single();
     if (error || !returnReq) throw new Error(error?.message ?? "Return request not found");
@@ -433,9 +497,7 @@ async function completeReturn(
 
     // Send return completed email
     try {
-        const { data: { user } } = await supabase.auth.admin.getUserById(
-            (await supabase.from("return_requests").select("user_id").eq("id", return_request_id).single()).data?.user_id ?? ""
-        );
+        const { data: { user } } = await supabase.auth.admin.getUserById(returnReq.user_id);
         if (user?.email) {
             const { data: profile } = await supabase.from("profiles").select("full_name, first_name").eq("id", user.id).single();
             const customerName = profile?.full_name ?? profile?.first_name ?? "Customer";
@@ -452,6 +514,74 @@ async function completeReturn(
     });
 
     return { success: true };
+}
+
+// ─── Simplified Return Completion (approve→complete or shipped→complete) ─────
+
+async function completeReturnSimple(
+    supabase: ReturnType<typeof createClient>,
+    return_request_id: string,
+) {
+    const { data: returnReq, error } = await supabase
+        .from("return_requests")
+        .select("id, order_id, status, user_id, orders ( odoo_order_id )")
+        .eq("id", return_request_id)
+        .single();
+    if (error || !returnReq) throw new Error(error?.message ?? "Return request not found");
+
+    const allowedStatuses = ["approved", "item_shipped", "item_received"];
+    if (!allowedStatuses.includes(returnReq.status)) {
+        throw new Error(`Cannot complete: current status is '${returnReq.status}', expected one of: ${allowedStatuses.join(", ")}`);
+    }
+
+    // Create Odoo return if not already done and order is synced
+    type ReturnReqWithOrder = { orders: { odoo_order_id: number | null } | null };
+    const odooOrderId = (returnReq as unknown as ReturnReqWithOrder).orders?.odoo_order_id ?? null;
+    let odooReturnId: number | null = null;
+
+    if (odooOrderId) {
+        try {
+            const result = await callFunction("sync-to-odoo", {
+                action: "return_order",
+                payload: { odoo_order_id: odooOrderId },
+            }) as { success: boolean; result?: { res_id?: number }; error?: string };
+            if (result.success) {
+                odooReturnId = result.result?.res_id ?? null;
+            }
+        } catch (err) {
+            console.error("Odoo return creation failed (non-blocking):", err);
+        }
+    }
+
+    await supabase
+        .from("return_requests")
+        .update({
+            status: "completed",
+            odoo_return_id: odooReturnId,
+            updated_at: new Date().toISOString(),
+        })
+        .eq("id", return_request_id);
+
+    // Send completion email
+    try {
+        const { data: { user } } = await supabase.auth.admin.getUserById(returnReq.user_id);
+        if (user?.email) {
+            const { data: profile } = await supabase.from("profiles").select("full_name, first_name").eq("id", user.id).single();
+            const customerName = profile?.full_name ?? profile?.first_name ?? "Customer";
+            const orderRef = returnReq.order_id.slice(0, 8).toUpperCase();
+            const { subject, html } = buildReturnCompletedEmail(customerName, orderRef);
+            await sendEmail(user.email, subject, html);
+        }
+    } catch (emailErr) {
+        console.error("Failed to send return completed email:", emailErr);
+    }
+
+    await logEvent(supabase, "return.completed", "return", return_request_id, {
+        order_id: returnReq.order_id,
+        odoo_return_id: odooReturnId,
+    });
+
+    return { success: true, odoo_return_id: odooReturnId };
 }
 
 // ─── Event Log Listing ───────────────────────────────────────────────────────
@@ -543,6 +673,9 @@ serve(async (req) => {
 
             case "complete_return":
                 return json(await completeReturn(supabase, payload.return_request_id));
+
+            case "complete_return_simple":
+                return json(await completeReturnSimple(supabase, payload.return_request_id));
 
             case "list_events":
                 return json({

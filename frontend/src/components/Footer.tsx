@@ -11,10 +11,9 @@ export default function Footer() {
             <div className="footer-left">
                 <img
                     className="footer-logo"
-                    src="https://placehold.co/80x80/e8e3dc/8a8a82?text=logo"
+                    src="/TCON Logo.png"
                     alt="The Colours of Nature"
                 />
-                <span className="footer-brand">The Colours of Nature</span>
             </div>
 
             {/* ── Right: navy panel ───────────────────────────────────────────── */}

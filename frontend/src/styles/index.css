@@ -1,0 +1,11 @@
+/* Organized CSS entry point — import order matters (base first, then components, then pages) */
+
+@import './base.css';
+@import './components.css';
+@import './shop.css';
+@import './product.css';
+@import './account.css';
+@import './checkout.css';
+@import './pages.css';
+@import './layout.css';
+@import './admin.css';

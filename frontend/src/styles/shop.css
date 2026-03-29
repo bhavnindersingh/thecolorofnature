@@ -1,0 +1,338 @@
+/* ─── Shop Page ─────────────────────────────────────────────────────────────── */
+.shop-page {
+  padding-top: calc(var(--nav-h) + 4rem);
+  padding-bottom: 8rem;
+  background-color: #18336B;
+  min-height: 100vh;
+}
+
+/* Hero header — split two-column */
+.shop-hero {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 3rem;
+  padding-bottom: 2.5rem;
+  margin-bottom: 0;
+}
+
+.shop-hero-left {
+  flex-shrink: 0;
+}
+
+.shop-hero-title {
+  font-family: var(--font-serif);
+  font-size: clamp(2.4rem, 5vw, 4rem);
+  font-weight: 300;
+  line-height: 1.05;
+  color: var(--sage);
+  margin: 0.5rem 0 0;
+}
+
+.shop-hero-desc {
+  font-size: 0.85rem;
+  color: var(--sage);
+  line-height: 1.85;
+  max-width: 320px;
+  text-align: right;
+  padding-bottom: 0.25rem;
+}
+
+/* ─── Shop Filters & Categories ─────────────────────────────────────────────── */
+.shop-controls {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 2rem;
+}
+
+.shop-controls-right {
+  display: flex;
+  align-items: center;
+  gap: 1.5rem;
+}
+
+.shop-category-tabs-wrapper {
+  margin-bottom: 3rem;
+  border-bottom: 1px solid var(--border);
+}
+
+.shop-category-tabs {
+  display: flex;
+  gap: 1.5rem;
+  overflow-x: auto;
+  padding-bottom: 1rem;
+  /* Add initial padding and allow scrolling past the last item */
+  padding-left: 1rem;
+  padding-right: 1rem;
+
+  /* Hide scrollbar for cleaner look, but retain scroll function */
+  -ms-overflow-style: none;
+  /* IE and Edge */
+  scrollbar-width: none;
+  /* Firefox */
+}
+
+.shop-category-tabs::-webkit-scrollbar {
+  display: none;
+}
+
+.shop-cat-tab {
+  font-size: 0.68rem;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--sage);
+  padding: 0.5rem 0;
+  transition: all var(--ease);
+  white-space: nowrap;
+  background: none;
+  border: none;
+  cursor: pointer;
+  font-family: var(--font-sans);
+  position: relative;
+}
+
+.shop-cat-tab::after {
+  content: '';
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 100%;
+  height: 1px;
+  background: var(--sage);
+  transition: right var(--ease);
+}
+
+.shop-cat-tab:hover {
+  color: var(--sage);
+}
+
+.shop-cat-tab:hover::after {
+  right: 0;
+}
+
+.shop-cat-tab.active {
+  color: var(--sage);
+}
+
+.shop-cat-tab.active::after {
+  right: 0;
+}
+
+
+
+.shop-count {
+  font-size: 0.65rem;
+  letter-spacing: 0.12em;
+  color: var(--sage);
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+
+.shop-sort-select {
+  font-family: var(--font-sans);
+  font-size: 0.66rem;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--sage);
+  border: none;
+  border-bottom: 1px solid var(--border);
+  background: transparent;
+  padding: 0.25rem 1.5rem 0.25rem 0;
+  outline: none;
+  cursor: pointer;
+  transition: border-color var(--ease);
+  appearance: none;
+  -webkit-appearance: none;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='8' height='5'%3E%3Cpath d='M0 0l4 5 4-5z' fill='%236b7c5c'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 0 center;
+}
+
+.shop-sort-select:hover {
+  border-bottom-color: var(--ink);
+}
+
+
+/* ─── Shop Empty / Error state ─────────────────────────────────────────────── */
+.shop-empty {
+  text-align: center;
+  padding: 6rem 0;
+  color: var(--sage);
+}
+
+.shop-empty-icon {
+  font-size: 2.5rem;
+  margin-bottom: 1.5rem;
+  opacity: 0.2;
+}
+
+.shop-empty p {
+  font-size: 0.88rem;
+}
+
+.shop-skeleton-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 1px;
+  background: var(--border);
+  border: 1px solid var(--border);
+}
+
+.product-card-skeleton {
+  background: var(--surface);
+}
+
+.skeleton-img {
+  aspect-ratio: 3/4;
+  background: linear-gradient(90deg, var(--bg-alt) 25%, #e8e4dd 50%, var(--bg-alt) 75%);
+  background-size: 200% 100%;
+  animation: shimmer 1.5s infinite;
+}
+
+.skeleton-body {
+  padding: 1rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.skeleton-line {
+  height: 12px;
+  border-radius: 2px;
+  background: linear-gradient(90deg, var(--bg-alt) 25%, #e8e4dd 50%, var(--bg-alt) 75%);
+  background-size: 200% 100%;
+  animation: shimmer 1.5s infinite;
+}
+
+.skeleton-line.short {
+  width: 40%;
+}
+
+.skeleton-line.mid {
+  width: 60%;
+}
+
+@keyframes shimmer {
+  0% {
+    background-position: 200% 0;
+  }
+
+  100% {
+    background-position: -200% 0;
+  }
+}
+
+/* ─── Editorial Triptych ───────────────────────────────────────────────────── */
+.editorial-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 1.5rem;
+}
+
+.editorial-card {
+  display: block;
+  position: relative;
+  overflow: hidden;
+  cursor: pointer;
+}
+
+.editorial-card-image-wrap {
+  aspect-ratio: 2/3;
+  overflow: hidden;
+}
+
+.editorial-card-image-wrap img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  transition: transform 0.7s ease;
+}
+
+.editorial-card:hover .editorial-card-image-wrap img {
+  transform: scale(1.04);
+}
+
+.editorial-card-body {
+  padding: 1.2rem 0 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+
+.editorial-tag {
+  font-size: 0.62rem;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: var(--sage);
+}
+
+.editorial-headline {
+  font-family: var(--font-serif);
+  font-size: 1.3rem;
+  font-weight: 300;
+  color: var(--ink);
+}
+
+.editorial-sub {
+  font-size: 0.82rem;
+  color: var(--ink-muted);
+  margin-bottom: 0.3rem;
+}
+
+.editorial-cta {
+  font-size: 0.68rem;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--ink);
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  position: relative;
+  width: fit-content;
+  padding-bottom: 1px;
+}
+
+.editorial-cta::after {
+  content: '';
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 100%;
+  height: 1px;
+  background: var(--ink);
+  transition: right var(--ease);
+}
+
+.editorial-card:hover .editorial-cta::after {
+  right: 0;
+}
+
+/* ─── Responsive additions ─────────────────────────────────────────────────── */
+@media (max-width: 900px) {
+  .editorial-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .shop-skeleton-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+
+@media (max-width: 640px) {
+  .shop-controls {
+    margin-bottom: 1.5rem;
+  }
+
+  .shop-category-tabs {
+    margin-bottom: 2rem;
+  }
+}
+
+/* ─── Product Card Link wrapper ─────────────────────────────────────────────── */
+.product-card-link {
+  display: block;
+  color: inherit;
+  text-decoration: none;
+}
+

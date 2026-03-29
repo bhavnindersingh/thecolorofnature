@@ -62,13 +62,11 @@ interface AdminOrder {
 }
 
 type Tab = 'all' | 'failed_odoo' | 'pending_returns' | 'event_log'
-type InlineForm = 'status' | 'tracking' | 'confirm_cancel' | 'return' | 'sync_log' | null
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
 const SESSION_KEY = 'admin_pin'
 
-const STATUS_OPTIONS: OrderStatus[] = ['pending', 'paid', 'processing', 'shipped', 'delivered', 'cancelled']
 const STATUS_LABELS: Record<OrderStatus, string> = {
     pending: 'Pending', paid: 'Paid', processing: 'Processing',
     shipped: 'Shipped', delivered: 'Delivered', cancelled: 'Cancelled',
@@ -95,7 +93,6 @@ async function adminCall<T = unknown>(action: string, payload: Record<string, un
         headers: { Authorization: `Bearer ${pin}` },
     })
     if (error) {
-        // FunctionsHttpError wraps the 401
         const msg = (error as { message?: string }).message ?? 'Request failed'
         if (msg.includes('401') || msg.toLowerCase().includes('unauthorized')) {
             sessionStorage.removeItem(SESSION_KEY)
@@ -151,34 +148,21 @@ function PinGate({ onAuth }: { onAuth: () => void }) {
     }
 
     return (
-        <div style={{
-            minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center',
-            background: 'var(--bg)',
-        }}>
-            <div style={{
-                width: 320, background: 'var(--surface)', border: '1px solid var(--border)',
-                padding: '2.5rem 2rem', textAlign: 'center',
-            }}>
-                <h1 style={{ fontFamily: 'var(--font-serif)', fontSize: '1.8rem', fontWeight: 400, marginBottom: '0.25rem' }}>
-                    Admin Access
-                </h1>
-                <p style={{ color: 'var(--ink-muted)', fontSize: '0.85rem', marginBottom: '2rem' }}>
-                    The Colours of Nature
-                </p>
-                <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+        <div className="admin-pin">
+            <div className="admin-pin__card" style={{ width: 340 }}>
+                <h1 className="admin-pin__title">Admin Access</h1>
+                <p className="admin-pin__subtitle">The Colours of Nature</p>
+                <form onSubmit={handleSubmit} className="admin-pin__form">
                     <input
                         type="password"
                         value={pin}
                         onChange={e => setPin(e.target.value)}
                         placeholder="Enter PIN"
-                        className="form-input"
+                        className="admin-pin__input"
                         autoFocus
-                        style={{ textAlign: 'center', letterSpacing: '0.2em' }}
                     />
-                    {error && (
-                        <p style={{ color: '#b00', fontSize: '0.82rem', margin: 0 }}>{error}</p>
-                    )}
-                    <button type="submit" className="btn btn-primary" disabled={loading || !pin}>
+                    {error && <p className="admin-pin__error">{error}</p>}
+                    <button type="submit" className="admin-pin__btn" disabled={loading || !pin}>
                         {loading ? 'Verifying…' : 'Enter'}
                     </button>
                 </form>
@@ -187,23 +171,23 @@ function PinGate({ onAuth }: { onAuth: () => void }) {
     )
 }
 
-// ─── Order Row ────────────────────────────────────────────────────────────────
+// ─── Order Row (simplified contextual actions) ──────────────────────────────
 
 function OrderRow({ order, onRefresh }: { order: AdminOrder; onRefresh: () => void }) {
     const [expanded, setExpanded] = useState(false)
-    const [activeForm, setActiveForm] = useState<InlineForm>(null)
-    const [statusVal, setStatusVal] = useState<OrderStatus>(order.status)
-    const [statusNote, setStatusNote] = useState('')
     const [carrier, setCarrier] = useState(order.carrier ?? '')
     const [trackingNum, setTrackingNum] = useState(order.tracking_number ?? '')
     const [estDelivery, setEstDelivery] = useState(order.estimated_delivery ?? '')
     const [returnNote, setReturnNote] = useState('')
     const [returnInstructions, setReturnInstructions] = useState('')
-    const [syncLog, setSyncLog] = useState<string[]>([])
+    const [showCancelConfirm, setShowCancelConfirm] = useState(false)
     const [busy, setBusy] = useState(false)
     const [msg, setMsg] = useState<{ text: string; ok: boolean } | null>(null)
 
     const hasActiveReturn = order.return_requests.some(r => !['completed', 'rejected'].includes(r.status))
+    const odooSynced = !!order.odoo_order_id
+    const canPushToOdoo = !odooSynced && ['paid', 'processing'].includes(order.status)
+    const canCancel = ['pending', 'paid', 'processing'].includes(order.status)
 
     function showMsg(text: string, ok: boolean) {
         setMsg({ text, ok })
@@ -223,15 +207,7 @@ function OrderRow({ order, onRefresh }: { order: AdminOrder; onRefresh: () => vo
         }
     }
 
-    async function handleUpdateStatus() {
-        await run(async () => {
-            await adminCall('update_order_status', { order_id: order.id, status: statusVal, note: statusNote || undefined })
-            setActiveForm(null)
-            showMsg('Status updated.', true)
-        })
-    }
-
-    async function handleUpdateTracking() {
+    async function handleShipOrder() {
         await run(async () => {
             await adminCall('update_tracking', {
                 order_id: order.id,
@@ -239,27 +215,33 @@ function OrderRow({ order, onRefresh }: { order: AdminOrder; onRefresh: () => vo
                 carrier,
                 estimated_delivery: estDelivery || undefined,
             })
-            setActiveForm(null)
-            showMsg('Tracking saved.', true)
+            showMsg('Order shipped — customer notified.', true)
         })
     }
 
     async function handlePushToOdoo() {
         await run(async () => {
             const res = await adminCall<{ success: boolean; odoo_order_id?: number; message?: string }>('push_to_odoo', { order_id: order.id })
-            showMsg(res.message ?? `Pushed to Odoo — ID ${res.odoo_order_id}`, true)
+            showMsg(res.message ?? `Synced to Odoo — ID ${res.odoo_order_id}`, true)
         })
     }
 
     async function handleCancel() {
         await run(async () => {
             await adminCall('cancel_order', { order_id: order.id })
-            setActiveForm(null)
+            setShowCancelConfirm(false)
             showMsg('Order cancelled.', true)
         })
     }
 
-    async function handleReturn(action: 'approve' | 'reject', returnId: string) {
+    async function handleMarkDelivered() {
+        await run(async () => {
+            await adminCall('update_order_status', { order_id: order.id, status: 'delivered' })
+            showMsg('Marked as delivered.', true)
+        })
+    }
+
+    async function handleReturnAction(action: 'approve' | 'reject', returnId: string) {
         await run(async () => {
             await adminCall('handle_return', {
                 return_request_id: returnId,
@@ -267,161 +249,301 @@ function OrderRow({ order, onRefresh }: { order: AdminOrder; onRefresh: () => vo
                 admin_note: returnNote || undefined,
                 return_instructions: action === 'approve' ? (returnInstructions || undefined) : undefined,
             })
-            setActiveForm(null)
             setReturnNote('')
             setReturnInstructions('')
             showMsg(`Return ${action}d.`, true)
         })
     }
 
-    async function handleMarkReturnReceived(returnId: string) {
-        await run(async () => {
-            await adminCall('mark_return_received', { return_request_id: returnId })
-            showMsg('Return marked as received. Odoo stock return created.', true)
-        })
-    }
-
     async function handleCompleteReturn(returnId: string) {
         await run(async () => {
-            await adminCall('complete_return', { return_request_id: returnId })
+            await adminCall('complete_return_simple', { return_request_id: returnId })
             showMsg('Return completed.', true)
         })
     }
 
-    async function handleSyncProducts() {
-        setBusy(true)
-        try {
-            const res = await adminCall<{ success: boolean; log?: string[] }>('sync_products')
-            setSyncLog(res.log ?? [])
-            setActiveForm('sync_log')
-        } catch (e) {
-            showMsg((e as Error).message, false)
-        } finally {
-            setBusy(false)
+    // ── Contextual action panel content ──
+    function renderActionPanel() {
+        const { status } = order
+
+        // Cancelled — read-only
+        if (status === 'cancelled') {
+            return (
+                <div className="admin-card">
+                    <h4 className="admin-card__header">Cancelled</h4>
+                    <p style={{ fontSize: '0.82rem', color: '#8494a7', margin: 0 }}>This order has been cancelled.</p>
+                </div>
+            )
         }
-    }
-    // suppress unused – handleSyncProducts is used elsewhere
-    void handleSyncProducts
 
-    const odooSynced = !!order.odoo_order_id
-    const canPushToOdoo = !odooSynced && ['paid', 'processing'].includes(order.status)
-    const canCancel = ['pending', 'paid', 'processing'].includes(order.status)
-    const canAddTracking = ['paid', 'processing'].includes(order.status)
-    const canMarkDelivered = order.status === 'shipped'
+        // Pending — awaiting payment
+        if (status === 'pending') {
+            return (
+                <div className="admin-card">
+                    <h4 className="admin-card__header">Awaiting Payment</h4>
+                    <p style={{ fontSize: '0.82rem', color: '#8494a7', margin: '0 0 0.75rem' }}>Customer has not confirmed payment yet.</p>
+                    {renderCancelButton()}
+                </div>
+            )
+        }
 
-    return (
-        <div style={{ borderBottom: '1px solid var(--border)' }}>
-            {/* ── Row ── */}
-            <div
-                style={{
-                    display: 'grid',
-                    gridTemplateColumns: '110px 1fr 90px 140px 90px 100px 60px 130px',
-                    alignItems: 'center',
-                    padding: '0.75rem 1rem',
-                    cursor: 'pointer',
-                    background: expanded ? 'var(--bg-alt)' : 'var(--surface)',
-                    gap: '0.5rem',
-                }}
-                onClick={() => setExpanded(v => !v)}
-            >
-                <span style={{ fontFamily: 'monospace', fontSize: '0.8rem', color: 'var(--ink-mid)' }}>
-                    {shortId(order.id)}
-                </span>
-
-                <div style={{ overflow: 'hidden' }}>
-                    <div style={{ fontSize: '0.85rem', fontWeight: 500, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                        {customerName(order)}
+        // Paid/Processing without Odoo sync — retry sync
+        if ((status === 'paid' || status === 'processing') && !odooSynced) {
+            return (
+                <div className="admin-card">
+                    <h4 className="admin-card__header">Odoo Sync Required</h4>
+                    <div style={{ background: '#fffbeb', border: '1px solid #f6e05e', borderRadius: 6, padding: '0.6rem 0.75rem', fontSize: '0.82rem', marginBottom: '0.75rem' }}>
+                        <AlertTriangle size={13} strokeWidth={1.5} color="#d69e2e" style={{ verticalAlign: 'middle', marginRight: 4 }} />
+                        This order has not been synced to Odoo. Push it to start fulfillment.
                     </div>
-                    <div style={{ fontSize: '0.75rem', color: 'var(--ink-muted)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                        {order.customer_email}
+                    <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
+                        <button className="admin-action-btn admin-action-btn--warning admin-action-btn--sm" disabled={busy} onClick={handlePushToOdoo}>
+                            {busy ? 'Syncing…' : 'Push to Odoo'}
+                        </button>
+                        {renderCancelButton()}
                     </div>
                 </div>
+            )
+        }
 
-                <span style={{ fontSize: '0.8rem', color: 'var(--ink-muted)' }}>{fmtDate(order.created_at)}</span>
+        // Paid/Processing with Odoo sync — ship order
+        if (status === 'paid' || status === 'processing') {
+            return (
+                <div className="admin-card">
+                    <h4 className="admin-card__header">Ship Order</h4>
+                    <div className="admin-tracking-form">
+                        <div className="form-group">
+                            <label className="form-label">Carrier</label>
+                            <input value={carrier} onChange={e => setCarrier(e.target.value)} placeholder="DTDC, Blue Dart…" />
+                        </div>
+                        <div className="form-group">
+                            <label className="form-label">Tracking #</label>
+                            <input value={trackingNum} onChange={e => setTrackingNum(e.target.value)} placeholder="AWB123456" />
+                        </div>
+                        <div className="form-group">
+                            <label className="form-label">Est. Delivery</label>
+                            <input type="date" value={estDelivery} onChange={e => setEstDelivery(e.target.value)} />
+                        </div>
+                        <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
+                            <button
+                                className="admin-action-btn admin-action-btn--primary admin-action-btn--sm"
+                                disabled={busy || !carrier || !trackingNum}
+                                onClick={handleShipOrder}
+                            >
+                                {busy ? 'Shipping…' : 'Ship Order'}
+                            </button>
+                            {renderCancelButton()}
+                        </div>
+                    </div>
+                </div>
+            )
+        }
 
-                <span style={{ fontSize: '0.82rem', color: 'var(--ink-mid)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                    {order.order_items.length} item{order.order_items.length !== 1 ? 's' : ''}
-                    {order.order_items[0]?.product ? ` · ${order.order_items[0].product.name}` : ''}
-                </span>
+        // Shipped — mark delivered
+        if (status === 'shipped') {
+            return (
+                <div className="admin-card">
+                    <h4 className="admin-card__header">In Transit</h4>
+                    {order.tracking_number && (
+                        <div className="admin-tracking-info" style={{ marginBottom: '0.75rem' }}>
+                            <strong>Tracking:</strong> {order.carrier} — {order.tracking_number}
+                            {order.estimated_delivery && <><br /><strong>Est. delivery:</strong> {order.estimated_delivery}</>}
+                        </div>
+                    )}
+                    <button className="admin-action-btn admin-action-btn--primary admin-action-btn--sm" disabled={busy} onClick={handleMarkDelivered}>
+                        {busy ? 'Updating…' : 'Mark Delivered'}
+                    </button>
+                </div>
+            )
+        }
 
-                <span style={{ fontSize: '0.85rem', fontWeight: 500 }}>{fmtAmount(order.total_amount)}</span>
+        // Delivered — show return actions if any, otherwise read-only
+        if (status === 'delivered') {
+            return (
+                <div className="admin-card">
+                    <h4 className="admin-card__header">Delivered</h4>
+                    {order.return_requests.length === 0 ? (
+                        <p style={{ fontSize: '0.82rem', color: '#8494a7', margin: 0 }}>Order delivered successfully. No return requests.</p>
+                    ) : (
+                        order.return_requests.map(r => renderReturnSection(r))
+                    )}
+                </div>
+            )
+        }
 
-                <span className={`status-badge badge-${order.status}`} style={{ display: 'flex', alignItems: 'center', gap: '0.3rem', fontSize: '0.75rem' }}>
+        return null
+    }
+
+    function renderCancelButton() {
+        if (!canCancel) return null
+        if (showCancelConfirm) {
+            return (
+                <>
+                    <button className="admin-action-btn admin-action-btn--danger-solid admin-action-btn--sm" disabled={busy} onClick={handleCancel}>
+                        {busy ? 'Cancelling…' : 'Yes, Cancel'}
+                    </button>
+                    <button className="admin-action-btn admin-action-btn--outline admin-action-btn--sm" onClick={() => setShowCancelConfirm(false)}>
+                        No
+                    </button>
+                </>
+            )
+        }
+        return (
+            <button className="admin-action-btn admin-action-btn--danger admin-action-btn--sm" onClick={() => setShowCancelConfirm(true)}>
+                Cancel Order
+            </button>
+        )
+    }
+
+    function renderReturnSection(r: AdminReturnRequest) {
+        const statusLabel: Record<ReturnStatus, string> = {
+            pending: 'Pending Review', approved: 'Approved — Awaiting Shipback',
+            item_shipped: 'Customer Shipped', item_received: 'Item Received',
+            rejected: 'Rejected', completed: 'Completed',
+        }
+        const isActive = !['completed', 'rejected'].includes(r.status)
+
+        return (
+            <div key={r.id} style={{ paddingBottom: '0.75rem', borderBottom: '1px solid #f0f4f8', marginBottom: '0.75rem' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.5rem' }}>
+                    <span className={`status-badge badge-${r.status === 'rejected' ? 'cancelled' : r.status === 'completed' ? 'delivered' : 'processing'}`} style={{ fontSize: '0.7rem' }}>
+                        {statusLabel[r.status]}
+                    </span>
+                    <span style={{ color: '#8494a7', fontSize: '0.75rem' }}>{fmtDate(r.created_at)}</span>
+                </div>
+
+                <p style={{ fontSize: '0.82rem', margin: '0 0 0.25rem' }}><strong>Reason:</strong> {r.reason}</p>
+                {r.admin_note && <p style={{ fontSize: '0.82rem', margin: '0 0 0.25rem' }}><strong>Note:</strong> {r.admin_note}</p>}
+                {r.return_instructions && <p style={{ fontSize: '0.82rem', margin: '0 0 0.25rem' }}><strong>Instructions:</strong> {r.return_instructions}</p>}
+                {r.odoo_return_id && <p style={{ fontSize: '0.78rem', color: '#8494a7', margin: '0 0 0.25rem' }}>Odoo return: #{r.odoo_return_id}</p>}
+
+                {/* Pending: approve/reject */}
+                {r.status === 'pending' && (
+                    <div style={{ marginTop: '0.5rem', display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+                        <div className="form-group" style={{ marginBottom: 0 }}>
+                            <label className="form-label" style={{ fontSize: '0.65rem', color: '#8494a7' }}>Return Instructions (emailed to customer)</label>
+                            <textarea
+                                style={{ width: '100%', fontSize: '0.82rem', padding: '0.4rem 0.5rem', border: '1px solid #c8d6e8', fontFamily: 'var(--font-sans)', resize: 'vertical', minHeight: 50 }}
+                                value={returnInstructions}
+                                onChange={e => setReturnInstructions(e.target.value)}
+                                placeholder="Ship the item to…"
+                            />
+                        </div>
+                        <div className="form-group" style={{ marginBottom: 0 }}>
+                            <label className="form-label" style={{ fontSize: '0.65rem', color: '#8494a7' }}>Admin Note (internal)</label>
+                            <input
+                                style={{ width: '100%', fontSize: '0.82rem', padding: '0.4rem 0.5rem', border: '1px solid #c8d6e8', fontFamily: 'var(--font-sans)' }}
+                                value={returnNote}
+                                onChange={e => setReturnNote(e.target.value)}
+                                placeholder="Internal note…"
+                            />
+                        </div>
+                        <div style={{ display: 'flex', gap: '0.5rem' }}>
+                            <button className="admin-action-btn admin-action-btn--primary admin-action-btn--sm" disabled={busy} onClick={() => handleReturnAction('approve', r.id)}>
+                                {busy ? 'Processing…' : 'Approve & Email'}
+                            </button>
+                            <button className="admin-action-btn admin-action-btn--danger admin-action-btn--sm" disabled={busy} onClick={() => handleReturnAction('reject', r.id)}>
+                                Reject
+                            </button>
+                        </div>
+                    </div>
+                )}
+
+                {/* Any intermediate state: single Complete button */}
+                {isActive && r.status !== 'pending' && (
+                    <button className="admin-action-btn admin-action-btn--primary admin-action-btn--sm" style={{ marginTop: '0.5rem' }} disabled={busy} onClick={() => handleCompleteReturn(r.id)}>
+                        {busy ? 'Processing…' : 'Complete Return'}
+                    </button>
+                )}
+            </div>
+        )
+    }
+
+    return (
+        <div>
+            {/* ── Collapsed Row ── */}
+            <div
+                className={`admin-order-row${expanded ? ' admin-order-row--expanded' : ''}`}
+                onClick={() => setExpanded(v => !v)}
+            >
+                <span className="admin-order-row__id">{shortId(order.id)}</span>
+
+                <div className="admin-order-row__customer">
+                    <div className="admin-order-row__name">{customerName(order)}</div>
+                    <div className="admin-order-row__email">{order.customer_email}</div>
+                </div>
+
+                <span className="admin-order-row__date">{fmtDate(order.created_at)}</span>
+
+                <span className="admin-order-row__amount">{fmtAmount(order.total_amount)}</span>
+
+                <span className={`status-badge badge-${order.status}`} style={{ display: 'flex', alignItems: 'center', gap: '0.3rem', fontSize: '0.73rem' }}>
                     {STATUS_ICONS[order.status]} {STATUS_LABELS[order.status]}
                 </span>
 
-                <span title={odooSynced ? `Odoo #${order.odoo_order_id}` : 'Not synced to Odoo'}>
+                <span className="admin-odoo-badge" title={odooSynced ? `Odoo #${order.odoo_order_id}` : 'Not synced'}>
                     {odooSynced
                         ? <CheckCircle size={15} strokeWidth={1.5} color="#2a7a2a" />
-                        : <AlertTriangle size={15} strokeWidth={1.5} color="#8a6a00" />}
+                        : <AlertTriangle size={15} strokeWidth={1.5} color="#d69e2e" />}
                 </span>
 
-                <div style={{ display: 'flex', alignItems: 'center', gap: '0.25rem' }} onClick={e => e.stopPropagation()}>
+                <div className="admin-order-row__actions" onClick={e => e.stopPropagation()}>
                     {canPushToOdoo && (
-                        <button
-                            className="btn btn-sm"
-                            disabled={busy}
-                            onClick={handlePushToOdoo}
-                            style={{ background: '#fdf3dc', color: '#8a6a00', border: '1px solid #e6cfa0', fontSize: '0.72rem', padding: '0.25rem 0.5rem' }}
-                        >
-                            Push Odoo
+                        <button className="admin-action-btn admin-action-btn--warning admin-action-btn--sm" disabled={busy} onClick={handlePushToOdoo}>
+                            Sync Odoo
                         </button>
                     )}
                     {hasActiveReturn && (
-                        <span style={{ fontSize: '0.7rem', background: '#fde8e8', color: '#8c3a3a', padding: '0.15rem 0.4rem', border: '1px solid #f5b8b8' }}>
+                        <span style={{ fontSize: '0.7rem', background: '#fdf2f2', color: '#c53030', padding: '0.15rem 0.4rem', border: '1px solid #f5c6c6', borderRadius: 3 }}>
                             Return
                         </span>
                     )}
-                    {expanded ? <ChevronUp size={14} strokeWidth={1.5} color="var(--ink-muted)" /> : <ChevronDown size={14} strokeWidth={1.5} color="var(--ink-muted)" />}
+                    {expanded ? <ChevronUp size={14} strokeWidth={1.5} color="#8494a7" /> : <ChevronDown size={14} strokeWidth={1.5} color="#8494a7" />}
                 </div>
             </div>
 
-            {/* ── Expanded detail ── */}
+            {/* ── Expanded Detail — 2-column layout ── */}
             {expanded && (
-                <div style={{ background: 'var(--bg)', borderTop: '1px solid var(--border)', padding: '1.25rem 1.5rem', display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
-
+                <div className="admin-expanded">
                     {msg && (
-                        <div style={{ padding: '0.5rem 0.75rem', background: msg.ok ? '#edf5ed' : '#fde8e8', color: msg.ok ? '#2a5f2a' : '#8c3a3a', fontSize: '0.82rem', border: `1px solid ${msg.ok ? '#b6d9b6' : '#f5b8b8'}` }}>
+                        <div className={`admin-msg ${msg.ok ? 'admin-msg--success' : 'admin-msg--error'}`}>
                             {msg.text}
                         </div>
                     )}
 
-                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1.5rem' }}>
-
-                        {/* Items */}
-                        <div>
-                            <h4 style={sectionHead}>Items</h4>
-                            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.82rem' }}>
+                    <div className="admin-grid" style={{ gridTemplateColumns: '1fr 1fr' }}>
+                        {/* ── Left: Order Info ── */}
+                        <div className="admin-card">
+                            <h4 className="admin-card__header">Items ({order.order_items.length})</h4>
+                            <table className="admin-table">
                                 <thead>
-                                    <tr style={{ borderBottom: '1px solid var(--border)', color: 'var(--ink-muted)' }}>
-                                        <th style={th}>Product</th>
-                                        <th style={{ ...th, textAlign: 'right' }}>Qty</th>
-                                        <th style={{ ...th, textAlign: 'right' }}>Price</th>
-                                        <th style={{ ...th, textAlign: 'right' }}>Subtotal</th>
+                                    <tr>
+                                        <th>Product</th>
+                                        <th style={{ textAlign: 'right' }}>Qty</th>
+                                        <th style={{ textAlign: 'right' }}>Price</th>
+                                        <th style={{ textAlign: 'right' }}>Subtotal</th>
                                     </tr>
                                 </thead>
                                 <tbody>
                                     {order.order_items.map(item => (
-                                        <tr key={item.id} style={{ borderBottom: '1px solid var(--border)' }}>
-                                            <td style={td}>{item.product?.name ?? '—'}</td>
-                                            <td style={{ ...td, textAlign: 'right' }}>{item.quantity}</td>
-                                            <td style={{ ...td, textAlign: 'right' }}>{fmtAmount(item.unit_price)}</td>
-                                            <td style={{ ...td, textAlign: 'right' }}>{fmtAmount(item.quantity * item.unit_price)}</td>
+                                        <tr key={item.id}>
+                                            <td>{item.product?.name ?? '—'}</td>
+                                            <td style={{ textAlign: 'right' }}>{item.quantity}</td>
+                                            <td style={{ textAlign: 'right' }}>{fmtAmount(item.unit_price)}</td>
+                                            <td style={{ textAlign: 'right' }}>{fmtAmount(item.quantity * item.unit_price)}</td>
                                         </tr>
                                     ))}
-                                    <tr>
-                                        <td colSpan={3} style={{ ...td, textAlign: 'right', fontWeight: 600 }}>Total</td>
-                                        <td style={{ ...td, textAlign: 'right', fontWeight: 600 }}>{fmtAmount(order.total_amount)}</td>
+                                    <tr className="total-row">
+                                        <td colSpan={3} style={{ textAlign: 'right' }}>Total</td>
+                                        <td style={{ textAlign: 'right' }}>{fmtAmount(order.total_amount)}</td>
                                     </tr>
                                 </tbody>
                             </table>
-                        </div>
 
-                        {/* Shipping */}
-                        <div>
-                            <h4 style={sectionHead}>Shipping Address</h4>
+                            {/* Shipping address */}
+                            <h4 className="admin-card__header" style={{ marginTop: '1rem' }}>Shipping</h4>
                             {order.shipping_address ? (
-                                <address style={{ fontStyle: 'normal', fontSize: '0.82rem', lineHeight: 1.6, color: 'var(--ink-mid)' }}>
+                                <address className="admin-address">
                                     {[
                                         [order.shipping_address.first_name, order.shipping_address.last_name].filter(Boolean).join(' '),
                                         order.shipping_address.address_line_1,
@@ -431,215 +553,21 @@ function OrderRow({ order, onRefresh }: { order: AdminOrder; onRefresh: () => vo
                                         order.shipping_address.phone,
                                     ].filter(Boolean).map((line, i) => <span key={i}>{line}<br /></span>)}
                                 </address>
-                            ) : <p style={{ fontSize: '0.82rem', color: 'var(--ink-muted)' }}>—</p>}
+                            ) : <p className="admin-address">No address provided</p>}
 
-                            {order.tracking_number && (
-                                <div style={{ marginTop: '0.75rem', fontSize: '0.82rem' }}>
-                                    <strong>Tracking:</strong> {order.carrier} — {order.tracking_number}
-                                    {order.estimated_delivery && <><br /><strong>Est. delivery:</strong> {order.estimated_delivery}</>}
-                                </div>
-                            )}
                             {order.odoo_order_id && (
-                                <div style={{ marginTop: '0.5rem', fontSize: '0.82rem', color: 'var(--ink-muted)' }}>
+                                <div className="admin-odoo-info">
                                     Odoo SO: <strong>#{order.odoo_order_id}</strong>
                                     {order.odoo_picking_name && <> · Picking: <strong>{order.odoo_picking_name}</strong></>}
                                 </div>
                             )}
                         </div>
+
+                        {/* ── Right: Contextual Action ── */}
+                        {renderActionPanel()}
                     </div>
-
-                    {/* ── Action buttons ── */}
-                    <div>
-                        <h4 style={sectionHead}>Actions</h4>
-                        <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.5rem' }}>
-                            <button className="btn btn-sm btn-outline" onClick={() => setActiveForm(f => f === 'status' ? null : 'status')}>Update Status</button>
-                            {canAddTracking && <button className="btn btn-sm btn-outline" onClick={() => setActiveForm(f => f === 'tracking' ? null : 'tracking')}>Add Tracking</button>}
-                            {canMarkDelivered && (
-                                <button className="btn btn-sm btn-primary" disabled={busy} onClick={() => run(async () => { await adminCall('update_order_status', { order_id: order.id, status: 'delivered' }); showMsg('Marked as delivered.', true) })}>
-                                    Mark Delivered
-                                </button>
-                            )}
-                            {canPushToOdoo && (
-                                <button className="btn btn-sm" disabled={busy} onClick={handlePushToOdoo} style={{ background: '#fdf3dc', color: '#8a6a00', border: '1px solid #e6cfa0' }}>
-                                    Push to Odoo
-                                </button>
-                            )}
-                            {canCancel && <button className="btn btn-sm btn-ghost" disabled={busy} style={{ color: '#8c3a3a' }} onClick={() => setActiveForm(f => f === 'confirm_cancel' ? null : 'confirm_cancel')}>Cancel Order</button>}
-                        </div>
-                    </div>
-
-                    {/* ── Inline: status update ── */}
-                    {activeForm === 'status' && (
-                        <InlinePanel title="Update Status" onClose={() => setActiveForm(null)}>
-                            <div className="form-row">
-                                <div className="form-group">
-                                    <label className="form-label">Status</label>
-                                    <select className="form-input" value={statusVal} onChange={e => setStatusVal(e.target.value as OrderStatus)}>
-                                        {STATUS_OPTIONS.map(s => <option key={s} value={s}>{STATUS_LABELS[s]}</option>)}
-                                    </select>
-                                </div>
-                            </div>
-                            <div className="form-group">
-                                <label className="form-label">Note (optional)</label>
-                                <textarea className="form-input" rows={2} value={statusNote} onChange={e => setStatusNote(e.target.value)} placeholder="Reason for status change…" />
-                            </div>
-                            <button className="btn btn-primary btn-sm" disabled={busy} onClick={handleUpdateStatus}>
-                                {busy ? 'Saving…' : 'Save Status'}
-                            </button>
-                        </InlinePanel>
-                    )}
-
-                    {/* ── Inline: tracking ── */}
-                    {activeForm === 'tracking' && (
-                        <InlinePanel title="Add Tracking" onClose={() => setActiveForm(null)}>
-                            <div className="form-row">
-                                <div className="form-group">
-                                    <label className="form-label">Carrier</label>
-                                    <input className="form-input" value={carrier} onChange={e => setCarrier(e.target.value)} placeholder="DTDC, Blue Dart…" />
-                                </div>
-                                <div className="form-group">
-                                    <label className="form-label">Tracking Number</label>
-                                    <input className="form-input" value={trackingNum} onChange={e => setTrackingNum(e.target.value)} placeholder="AWB123456" />
-                                </div>
-                                <div className="form-group">
-                                    <label className="form-label">Estimated Delivery</label>
-                                    <input className="form-input" type="date" value={estDelivery} onChange={e => setEstDelivery(e.target.value)} />
-                                </div>
-                            </div>
-                            <button className="btn btn-primary btn-sm" disabled={busy || !carrier || !trackingNum} onClick={handleUpdateTracking}>
-                                {busy ? 'Saving…' : 'Save Tracking'}
-                            </button>
-                        </InlinePanel>
-                    )}
-
-                    {/* ── Inline: cancel confirm ── */}
-                    {activeForm === 'confirm_cancel' && (
-                        <InlinePanel title="Cancel Order" onClose={() => setActiveForm(null)}>
-                            <p style={{ fontSize: '0.85rem', color: 'var(--ink-mid)', margin: '0 0 0.75rem' }}>
-                                Are you sure you want to cancel {shortId(order.id)}?
-                                {order.odoo_order_id && ' This will also cancel the order in Odoo.'}
-                            </p>
-                            <div style={{ display: 'flex', gap: '0.5rem' }}>
-                                <button className="btn btn-sm" disabled={busy} onClick={handleCancel} style={{ background: '#8c3a3a', color: '#fff', border: 'none' }}>
-                                    {busy ? 'Cancelling…' : 'Yes, Cancel'}
-                                </button>
-                                <button className="btn btn-sm btn-ghost" onClick={() => setActiveForm(null)}>No</button>
-                            </div>
-                        </InlinePanel>
-                    )}
-
-                    {/* ── Return requests ── */}
-                    {order.return_requests.length > 0 && (
-                        <div>
-                            <h4 style={sectionHead}>Return Requests</h4>
-                            {order.return_requests.map(r => {
-                                const RETURN_STATUS_LABELS: Record<string, string> = {
-                                    pending: 'Pending', approved: 'Approved', item_shipped: 'Item Shipped',
-                                    item_received: 'Item Received', rejected: 'Rejected', completed: 'Completed',
-                                }
-                                return (
-                                    <div key={r.id} style={{ border: '1px solid var(--border)', padding: '0.75rem 1rem', marginBottom: '0.5rem', fontSize: '0.82rem' }}>
-                                        <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '0.4rem' }}>
-                                            <span className={`status-badge badge-${r.status === 'item_shipped' ? 'shipped' : r.status === 'item_received' ? 'processing' : r.status}`}>
-                                                {RETURN_STATUS_LABELS[r.status] ?? r.status}
-                                            </span>
-                                            <span style={{ color: 'var(--ink-muted)' }}>{fmtDate(r.created_at)}</span>
-                                        </div>
-                                        <p style={{ margin: '0 0 0.4rem', color: 'var(--ink-mid)' }}><strong>Reason:</strong> {r.reason}</p>
-                                        {r.admin_note && <p style={{ margin: '0 0 0.4rem', color: 'var(--ink-mid)' }}><strong>Admin note:</strong> {r.admin_note}</p>}
-                                        {r.return_instructions && <p style={{ margin: '0 0 0.4rem', color: 'var(--ink-mid)' }}><strong>Instructions sent:</strong> {r.return_instructions}</p>}
-                                        {r.odoo_return_id && <p style={{ margin: '0', color: 'var(--ink-muted)' }}>Odoo return ID: {r.odoo_return_id}</p>}
-
-                                        {/* Pending: approve/reject */}
-                                        {r.status === 'pending' && (
-                                            <>
-                                                {activeForm === 'return' ? (
-                                                    <InlinePanel title="Handle Return" onClose={() => setActiveForm(null)}>
-                                                        <div className="form-group">
-                                                            <label className="form-label">Return Instructions (sent to customer via email)</label>
-                                                            <textarea className="form-input" rows={3} value={returnInstructions} onChange={e => setReturnInstructions(e.target.value)} placeholder="Ship the item to: ... Please include the original packaging." />
-                                                        </div>
-                                                        <div className="form-group">
-                                                            <label className="form-label">Admin Note (optional, internal)</label>
-                                                            <textarea className="form-input" rows={2} value={returnNote} onChange={e => setReturnNote(e.target.value)} placeholder="Internal note…" />
-                                                        </div>
-                                                        <div style={{ display: 'flex', gap: '0.5rem' }}>
-                                                            <button className="btn btn-sm btn-primary" disabled={busy} onClick={() => handleReturn('approve', r.id)}>
-                                                                {busy ? 'Processing…' : 'Approve & Send Email'}
-                                                            </button>
-                                                            <button className="btn btn-sm btn-ghost" disabled={busy} style={{ color: '#8c3a3a' }} onClick={() => handleReturn('reject', r.id)}>
-                                                                Reject
-                                                            </button>
-                                                        </div>
-                                                    </InlinePanel>
-                                                ) : (
-                                                    <button className="btn btn-sm btn-outline" style={{ marginTop: '0.5rem' }} onClick={() => setActiveForm('return')}>
-                                                        Handle Return
-                                                    </button>
-                                                )}
-                                            </>
-                                        )}
-
-                                        {/* Approved: waiting for customer to ship */}
-                                        {r.status === 'approved' && (
-                                            <div style={{ marginTop: '0.5rem', color: 'var(--ink-muted)', fontSize: '0.8rem' }}>
-                                                Waiting for customer to ship the item back.
-                                            </div>
-                                        )}
-
-                                        {/* Item shipped: admin can mark received */}
-                                        {r.status === 'item_shipped' && (
-                                            <button
-                                                className="btn btn-sm btn-primary"
-                                                style={{ marginTop: '0.5rem' }}
-                                                disabled={busy}
-                                                onClick={() => handleMarkReturnReceived(r.id)}
-                                            >
-                                                {busy ? 'Processing…' : 'Mark as Received'}
-                                            </button>
-                                        )}
-
-                                        {/* Item received: admin can complete */}
-                                        {r.status === 'item_received' && (
-                                            <button
-                                                className="btn btn-sm btn-primary"
-                                                style={{ marginTop: '0.5rem' }}
-                                                disabled={busy}
-                                                onClick={() => handleCompleteReturn(r.id)}
-                                            >
-                                                {busy ? 'Processing…' : 'Complete Return'}
-                                            </button>
-                                        )}
-                                    </div>
-                                )
-                            })}
-                        </div>
-                    )}
-
-                    {/* ── Sync log (if visible) ── */}
-                    {activeForm === 'sync_log' && syncLog.length > 0 && (
-                        <InlinePanel title="Sync Log" onClose={() => setActiveForm(null)}>
-                            <pre style={{ background: '#111', color: '#d4d4d4', padding: '0.75rem', fontSize: '0.75rem', maxHeight: '200px', overflow: 'auto', margin: 0, whiteSpace: 'pre-wrap' }}>
-                                {syncLog.join('\n')}
-                            </pre>
-                        </InlinePanel>
-                    )}
                 </div>
             )}
-        </div>
-    )
-}
-
-// ─── Inline panel helper ──────────────────────────────────────────────────────
-
-function InlinePanel({ title, onClose, children }: { title: string; onClose: () => void; children: React.ReactNode }) {
-    return (
-        <div style={{ background: 'var(--surface)', border: '1px solid var(--border)', padding: '1rem', display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                <strong style={{ fontSize: '0.85rem' }}>{title}</strong>
-                <button onClick={onClose} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--ink-muted)', fontSize: '1rem' }}>×</button>
-            </div>
-            {children}
         </div>
     )
 }
@@ -663,33 +591,30 @@ function EventLogPanel() {
     })
 
     const EVENT_TYPE_COLORS: Record<string, string> = {
-        'order': '#3a6a3a',
-        'return': '#6a3a6a',
-        'webhook': '#3a3a6a',
-        'product_sync': '#6a5a3a',
+        'order': '#2c5aa0',
+        'return': '#7c3aed',
+        'webhook': '#18336B',
+        'product_sync': '#d69e2e',
     }
 
     function eventColor(entityType: string) {
-        return EVENT_TYPE_COLORS[entityType] ?? 'var(--ink-mid)'
+        return EVENT_TYPE_COLORS[entityType] ?? '#4a5568'
     }
 
     return (
         <div style={{ padding: '1.25rem 0' }}>
-            {/* Filters */}
-            <div style={{ display: 'flex', gap: '0.75rem', marginBottom: '1rem', flexWrap: 'wrap', alignItems: 'center' }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
-                    <Search size={14} color="var(--ink-muted)" />
+            <div className="admin-events__filters">
+                <div className="admin-events__search">
+                    <Search size={14} color="#8494a7" />
                     <input
-                        className="form-input"
-                        style={{ width: 220, fontSize: '0.82rem', padding: '0.35rem 0.5rem' }}
+                        className="admin-events__input"
                         placeholder="Search by entity ID..."
                         value={searchId}
                         onChange={e => setSearchId(e.target.value)}
                     />
                 </div>
                 <select
-                    className="form-input"
-                    style={{ width: 160, fontSize: '0.82rem', padding: '0.35rem 0.5rem' }}
+                    className="admin-events__select"
                     value={entityFilter}
                     onChange={e => setEntityFilter(e.target.value)}
                 >
@@ -698,51 +623,41 @@ function EventLogPanel() {
                     <option value="return">Returns</option>
                     <option value="product_sync">Product Sync</option>
                 </select>
-                <button onClick={() => refetch()} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--ink-muted)' }} title="Refresh">
+                <button className="admin-tab__refresh" onClick={() => refetch()} title="Refresh">
                     <RefreshCw size={14} strokeWidth={1.5} />
                 </button>
             </div>
 
-            {isLoading && (
-                <div style={{ padding: '2rem', textAlign: 'center', color: 'var(--ink-muted)', fontSize: '0.85rem' }}>
-                    Loading events...
-                </div>
-            )}
-
-            {!isLoading && events.length === 0 && (
-                <div style={{ padding: '2rem', textAlign: 'center', color: 'var(--ink-muted)', fontSize: '0.85rem' }}>
-                    No events found.
-                </div>
-            )}
+            {isLoading && <div className="admin-state">Loading events...</div>}
+            {!isLoading && events.length === 0 && <div className="admin-state">No events found.</div>}
 
             {!isLoading && events.length > 0 && (
-                <div style={{ background: 'var(--surface)', border: '1px solid var(--border)' }}>
+                <div className="admin-card" style={{ padding: 0 }}>
                     {events.map(event => (
-                        <div key={event.id} style={{ borderBottom: '1px solid var(--border)', padding: '0.65rem 1rem', fontSize: '0.82rem', display: 'flex', gap: '0.75rem', alignItems: 'flex-start' }}>
-                            <span style={{ color: 'var(--ink-muted)', fontSize: '0.75rem', whiteSpace: 'nowrap', minWidth: 120 }}>
+                        <div key={event.id} className="admin-events__row">
+                            <span className="admin-events__time">
                                 {new Date(event.created_at).toLocaleString('en-IN', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' })}
                             </span>
-                            <span style={{
-                                fontSize: '0.7rem', padding: '0.1rem 0.4rem', border: `1px solid ${eventColor(event.entity_type)}40`,
-                                color: eventColor(event.entity_type), background: `${eventColor(event.entity_type)}10`,
-                                whiteSpace: 'nowrap',
-                            }}>
+                            <span
+                                className="admin-events__badge"
+                                style={{
+                                    border: `1px solid ${eventColor(event.entity_type)}40`,
+                                    color: eventColor(event.entity_type),
+                                    background: `${eventColor(event.entity_type)}10`,
+                                }}
+                            >
                                 {event.event_type}
                             </span>
                             {event.entity_id && (
-                                <span style={{ fontFamily: 'monospace', fontSize: '0.75rem', color: 'var(--ink-muted)' }}>
-                                    {event.entity_id.slice(0, 8)}
-                                </span>
+                                <span className="admin-events__entity">{event.entity_id.slice(0, 8)}</span>
                             )}
-                            <span style={{ color: 'var(--ink-mid)', flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                            <span className="admin-events__details">
                                 {Object.entries(event.details)
                                     .filter(([, v]) => v != null && v !== '')
                                     .map(([k, v]) => `${k}: ${typeof v === 'object' ? JSON.stringify(v) : v}`)
                                     .join(' | ') || '—'}
                             </span>
-                            <span style={{ fontSize: '0.72rem', color: 'var(--ink-muted)', whiteSpace: 'nowrap' }}>
-                                {event.actor}
-                            </span>
+                            <span className="admin-events__actor">{event.actor}</span>
                         </div>
                     ))}
                 </div>
@@ -751,15 +666,6 @@ function EventLogPanel() {
     )
 }
 
-// ─── Shared micro-styles ──────────────────────────────────────────────────────
-
-const sectionHead: React.CSSProperties = {
-    fontSize: '0.72rem', fontWeight: 600, letterSpacing: '0.08em',
-    textTransform: 'uppercase', color: 'var(--ink-muted)', margin: '0 0 0.5rem',
-}
-const th: React.CSSProperties = { padding: '0.3rem 0.5rem', fontWeight: 500, textAlign: 'left' }
-const td: React.CSSProperties = { padding: '0.35rem 0.5rem' }
-
 // ─── Dashboard ────────────────────────────────────────────────────────────────
 
 function AdminDashboard({ onLogout }: { onLogout: () => void }) {
@@ -767,7 +673,18 @@ function AdminDashboard({ onLogout }: { onLogout: () => void }) {
     const [syncBusy, setSyncBusy] = useState(false)
     const [syncLog, setSyncLog] = useState<string[]>([])
     const [showSyncLog, setShowSyncLog] = useState(false)
+    const [search, setSearch] = useState('')
+    const [statusFilter, setStatusFilter] = useState<OrderStatus | 'all'>('all')
+    const [dateFrom, setDateFrom] = useState('')
+    const [dateTo, setDateTo] = useState('')
     const queryClient = useQueryClient()
+
+    useEffect(() => {
+        setSearch('')
+        setStatusFilter('all')
+        setDateFrom('')
+        setDateTo('')
+    }, [activeTab])
 
     const { data: orders = [], isLoading, isError, refetch } = useQuery({
         queryKey: ['admin-orders', activeTab],
@@ -784,9 +701,23 @@ function AdminDashboard({ onLogout }: { onLogout: () => void }) {
         queryClient.invalidateQueries({ queryKey: ['admin-orders'] })
     }, [queryClient])
 
-    const displayOrders = activeTab === 'pending_returns'
+    const baseOrders = activeTab === 'pending_returns'
         ? orders.filter(o => o.return_requests.some(r => !['completed', 'rejected'].includes(r.status)))
         : orders
+
+    const displayOrders = baseOrders.filter(o => {
+        if (statusFilter !== 'all' && o.status !== statusFilter) return false
+        if (dateFrom && o.created_at < dateFrom) return false
+        if (dateTo && o.created_at > new Date(dateTo + 'T23:59:59').toISOString()) return false
+        if (search) {
+            const q = search.toLowerCase()
+            const name = (o.profile?.full_name ?? `${o.profile?.first_name ?? ''} ${o.profile?.last_name ?? ''}`).toLowerCase()
+            if (!o.id.toLowerCase().includes(q) &&
+                !(o.customer_email ?? '').toLowerCase().includes(q) &&
+                !name.includes(q)) return false
+        }
+        return true
+    })
 
     async function handleSyncProducts() {
         setSyncBusy(true)
@@ -809,77 +740,52 @@ function AdminDashboard({ onLogout }: { onLogout: () => void }) {
     ]
 
     return (
-        <div style={{ minHeight: '100vh', background: 'var(--bg)' }}>
-            {/* ── Header ── */}
-            <div style={{ background: 'var(--ink)', color: '#fff', padding: '0 1.5rem', display: 'flex', alignItems: 'center', justifyContent: 'space-between', height: '52px', position: 'sticky', top: 72, zIndex: 100 }}>
-                <span style={{ fontFamily: 'var(--font-serif)', fontSize: '1.1rem', letterSpacing: '0.03em' }}>Admin Dashboard</span>
-                <div style={{ display: 'flex', gap: '0.75rem', alignItems: 'center' }}>
-                    <button
-                        onClick={handleSyncProducts}
-                        disabled={syncBusy}
-                        style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', background: 'none', border: '1px solid rgba(255,255,255,0.3)', color: '#fff', padding: '0.35rem 0.75rem', cursor: 'pointer', fontSize: '0.8rem' }}
-                    >
-                        <RefreshCw size={13} strokeWidth={1.5} style={{ animation: syncBusy ? 'spin 1s linear infinite' : 'none' }} />
-                        {syncBusy ? 'Syncing…' : 'Sync Products'}
-                    </button>
-                    <button
-                        onClick={onLogout}
-                        style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', background: 'none', border: 'none', color: 'rgba(255,255,255,0.6)', padding: '0.35rem', cursor: 'pointer', fontSize: '0.8rem' }}
-                    >
-                        <LogOut size={14} strokeWidth={1.5} /> Logout
-                    </button>
-                </div>
-            </div>
-
+        <div className="admin">
             {/* ── Sync log modal ── */}
             {showSyncLog && (
-                <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', zIndex: 200, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                    <div style={{ background: '#111', width: '90%', maxWidth: 700, padding: '1.5rem', position: 'relative' }}>
-                        <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '1rem' }}>
-                            <span style={{ color: '#d4d4d4', fontWeight: 600 }}>Product Sync Log</span>
-                            <button onClick={() => setShowSyncLog(false)} style={{ background: 'none', border: 'none', color: '#d4d4d4', cursor: 'pointer', fontSize: '1.2rem' }}>×</button>
+                <div className="admin-modal-overlay">
+                    <div className="admin-modal">
+                        <div className="admin-modal__header">
+                            <span className="admin-modal__title">Product Sync Log</span>
+                            <button className="admin-modal__close" onClick={() => setShowSyncLog(false)}>×</button>
                         </div>
-                        <pre style={{ color: '#d4d4d4', fontSize: '0.75rem', maxHeight: '60vh', overflow: 'auto', margin: 0, whiteSpace: 'pre-wrap' }}>
-                            {syncLog.join('\n')}
-                        </pre>
+                        <pre className="admin-modal__pre">{syncLog.join('\n')}</pre>
                     </div>
                 </div>
             )}
 
-            <div style={{ maxWidth: 1400, margin: '0 auto', padding: '0 1rem' }}>
+            <div className="admin-container">
+                {/* ── Header (inside container) ── */}
+                <div className="admin-header">
+                    <span className="admin-header__title">Admin Dashboard</span>
+                    <div className="admin-header__actions">
+                        <button className="admin-header__btn" onClick={handleSyncProducts} disabled={syncBusy}>
+                            <RefreshCw size={13} strokeWidth={1.5} style={{ animation: syncBusy ? 'admin-spin 1s linear infinite' : 'none' }} />
+                            {syncBusy ? 'Syncing…' : 'Sync Products'}
+                        </button>
+                        <button className="admin-header__btn admin-header__btn--ghost" onClick={onLogout}>
+                            <LogOut size={14} strokeWidth={1.5} /> Logout
+                        </button>
+                    </div>
+                </div>
+
                 {/* ── Tabs ── */}
-                <div style={{ display: 'flex', gap: 0, borderBottom: '1px solid var(--border)', marginBottom: 0 }}>
+                <div className="admin-tabs">
                     {tabs.map(tab => (
                         <button
                             key={tab.id}
                             onClick={() => setActiveTab(tab.id)}
-                            style={{
-                                padding: '0.85rem 1.25rem',
-                                background: 'none',
-                                border: 'none',
-                                borderBottom: activeTab === tab.id ? '2px solid var(--ink)' : '2px solid transparent',
-                                color: activeTab === tab.id ? 'var(--ink)' : 'var(--ink-muted)',
-                                cursor: 'pointer',
-                                fontSize: '0.85rem',
-                                fontWeight: activeTab === tab.id ? 600 : 400,
-                                display: 'flex',
-                                alignItems: 'center',
-                                gap: '0.4rem',
-                            }}
+                            className={`admin-tab${activeTab === tab.id ? ' admin-tab--active' : ''}`}
                         >
                             {tab.label}
                             {tab.count != null && tab.count > 0 && (
-                                <span style={{ background: 'var(--bg-alt)', color: 'var(--ink-mid)', fontSize: '0.72rem', padding: '0.1rem 0.4rem', borderRadius: 10 }}>
-                                    {tab.count}
-                                </span>
+                                <span className="admin-tab__count">{tab.count}</span>
                             )}
                         </button>
                     ))}
-                    <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: '0.5rem', padding: '0 0.5rem' }}>
-                        <button onClick={() => refetch()} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--ink-muted)' }} title="Refresh">
-                            <RefreshCw size={14} strokeWidth={1.5} />
-                        </button>
-                    </div>
+                    <button className="admin-tab__refresh" onClick={() => refetch()} title="Refresh">
+                        <RefreshCw size={14} strokeWidth={1.5} />
+                    </button>
                 </div>
 
                 {/* ── Event Log Tab ── */}
@@ -888,25 +794,63 @@ function AdminDashboard({ onLogout }: { onLogout: () => void }) {
                 {/* ── Orders Tabs ── */}
                 {activeTab !== 'event_log' && (
                     <>
-                        {/* ── Table header ── */}
+                        {/* ── Filter bar ── */}
+                        <div className="admin-filter-bar">
+                            <div className="admin-filter-bar__search">
+                                <Search size={14} strokeWidth={1.5} className="admin-filter-bar__search-icon" />
+                                <input
+                                    type="text"
+                                    placeholder="Search email, name, order ID…"
+                                    value={search}
+                                    onChange={e => setSearch(e.target.value)}
+                                    className="admin-filter-bar__input"
+                                />
+                            </div>
+                            <select
+                                value={statusFilter}
+                                onChange={e => setStatusFilter(e.target.value as OrderStatus | 'all')}
+                                className="admin-filter-bar__select"
+                            >
+                                <option value="all">All Statuses</option>
+                                {(['pending', 'paid', 'processing', 'shipped', 'delivered', 'cancelled'] as const).map(s => (
+                                    <option key={s} value={s}>{s.charAt(0).toUpperCase() + s.slice(1)}</option>
+                                ))}
+                            </select>
+                            <div className="admin-filter-bar__dates">
+                                <input
+                                    type="date"
+                                    value={dateFrom}
+                                    onChange={e => setDateFrom(e.target.value)}
+                                    className="admin-filter-bar__select"
+                                    title="From date"
+                                />
+                                <span className="admin-filter-bar__date-sep">—</span>
+                                <input
+                                    type="date"
+                                    value={dateTo}
+                                    onChange={e => setDateTo(e.target.value)}
+                                    className="admin-filter-bar__select"
+                                    title="To date"
+                                />
+                            </div>
+                            {(search || statusFilter !== 'all' || dateFrom || dateTo) && (
+                                <button
+                                    className="admin-filter-bar__clear"
+                                    onClick={() => { setSearch(''); setStatusFilter('all'); setDateFrom(''); setDateTo('') }}
+                                >
+                                    Clear filters
+                                </button>
+                            )}
+                            <span className="admin-filter-bar__count">
+                                {displayOrders.length} of {baseOrders.length} orders
+                            </span>
+                        </div>
+
                         {!isLoading && !isError && (
-                            <div style={{
-                                display: 'grid',
-                                gridTemplateColumns: '110px 1fr 90px 140px 90px 100px 60px 130px',
-                                padding: '0.5rem 1rem',
-                                background: 'var(--bg-alt)',
-                                borderBottom: '1px solid var(--border)',
-                                fontSize: '0.72rem',
-                                fontWeight: 600,
-                                letterSpacing: '0.06em',
-                                textTransform: 'uppercase',
-                                color: 'var(--ink-muted)',
-                                gap: '0.5rem',
-                            }}>
+                            <div className="admin-table-header">
                                 <span>Order</span>
                                 <span>Customer</span>
                                 <span>Date</span>
-                                <span>Items</span>
                                 <span>Total</span>
                                 <span>Status</span>
                                 <span>Odoo</span>
@@ -914,25 +858,17 @@ function AdminDashboard({ onLogout }: { onLogout: () => void }) {
                             </div>
                         )}
 
-                        {/* ── States ── */}
-                        {isLoading && (
-                            <div style={{ padding: '3rem', textAlign: 'center', color: 'var(--ink-muted)', fontSize: '0.85rem' }}>
-                                Loading orders...
-                            </div>
-                        )}
+                        {isLoading && <div className="admin-state">Loading orders...</div>}
                         {isError && (
-                            <div style={{ padding: '3rem', textAlign: 'center', color: '#8c3a3a', fontSize: '0.85rem' }}>
-                                Failed to load orders. <button className="btn btn-ghost" onClick={() => refetch()}>Retry</button>
+                            <div className="admin-state" style={{ color: '#c53030' }}>
+                                Failed to load orders. <button className="admin-action-btn admin-action-btn--outline admin-action-btn--sm" onClick={() => refetch()}>Retry</button>
                             </div>
                         )}
                         {!isLoading && !isError && displayOrders.length === 0 && (
-                            <div style={{ padding: '3rem', textAlign: 'center', color: 'var(--ink-muted)', fontSize: '0.85rem' }}>
-                                No orders in this view.
-                            </div>
+                            <div className="admin-state">No orders in this view.</div>
                         )}
 
-                        {/* ── Order rows ── */}
-                        <div style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderTop: 'none' }}>
+                        <div className="admin-order-list">
                             {displayOrders.map(order => (
                                 <OrderRow key={order.id} order={order} onRefresh={handleRefresh} />
                             ))}
@@ -940,10 +876,6 @@ function AdminDashboard({ onLogout }: { onLogout: () => void }) {
                     </>
                 )}
             </div>
-
-            <style>{`
-                @keyframes spin { to { transform: rotate(360deg); } }
-            `}</style>
         </div>
     )
 }
@@ -951,13 +883,7 @@ function AdminDashboard({ onLogout }: { onLogout: () => void }) {
 // ─── Root ─────────────────────────────────────────────────────────────────────
 
 export default function Admin() {
-    const [authenticated, setAuthenticated] = useState(false)
-
-    useEffect(() => {
-        if (sessionStorage.getItem(SESSION_KEY)) {
-            setAuthenticated(true)
-        }
-    }, [])
+    const [authenticated, setAuthenticated] = useState(() => !!sessionStorage.getItem(SESSION_KEY))
 
     function handleLogout() {
         sessionStorage.removeItem(SESSION_KEY)

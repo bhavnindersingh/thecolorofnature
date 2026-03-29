@@ -50,12 +50,14 @@ function ProductCard({ product }: { product: Product }) {
                             src={imageSrc}
                             alt={product.name}
                             className={`product-card-image${secondImage ? ' product-card-image--primary' : ''}`}
+                            loading="lazy"
                         />
                         {secondImage && (
                             <img
                                 src={secondImage.image_url}
                                 alt={product.name}
                                 className="product-card-image product-card-image--hover"
+                                loading="lazy"
                             />
                         )}
                     </>

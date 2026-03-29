@@ -71,12 +71,54 @@ interface OdooStockQuant {
     quantity: number;
 }
 
+interface OdooProductImage {
+    id: number;
+    name: string;
+    sequence: number;
+    product_tmpl_id: [number, string];
+    product_variant_id: [number, string] | false;
+}
+
 const BATCH_SIZE = 50;
+const STORAGE_BUCKET = "product-images";
+
+async function uploadImageToStorage(
+    supabase: ReturnType<typeof createClient>,
+    odooPath: string,
+    storagePath: string,
+): Promise<string | null> {
+    try {
+        const odooResp = await fetch(`${ODOO_URL}/web/image/${odooPath}`);
+        if (!odooResp.ok) return null;
+        const contentType = odooResp.headers.get("Content-Type") ?? "image/jpeg";
+        const buffer = await odooResp.arrayBuffer();
+        const { error } = await supabase.storage
+            .from(STORAGE_BUCKET)
+            .upload(storagePath, buffer, { contentType, upsert: true });
+        if (error) return null;
+        const { data } = supabase.storage.from(STORAGE_BUCKET).getPublicUrl(storagePath);
+        return data.publicUrl;
+    } catch {
+        return null;
+    }
+}
 
 async function syncProducts(skipImages = false) {
     const uid = await getOdooUid();
     const log: string[] = [];
     log.push(`Authenticated as UID: ${uid}`);
+
+    // Ensure product-images storage bucket exists (public)
+    const { data: buckets } = await supabase.storage.listBuckets();
+    const bucketExists = buckets?.some((b) => b.name === STORAGE_BUCKET);
+    if (!bucketExists) {
+        const { error: bucketErr } = await supabase.storage.createBucket(STORAGE_BUCKET, { public: true });
+        if (bucketErr) {
+            log.push(`WARN: Could not create storage bucket '${STORAGE_BUCKET}': ${bucketErr.message}`);
+        } else {
+            log.push(`Created storage bucket '${STORAGE_BUCKET}'`);
+        }
+    }
 
     // ── Resolve "Online Shop" tag ID ──
     const tagRecords = await odooExecute(uid, "product.tag", "search_read",
@@ -139,6 +181,31 @@ async function syncProducts(skipImages = false) {
         stockMap.set(prodId, (stockMap.get(prodId) || 0) + sq.quantity);
     }
     log.push(`  ${stockMap.size} products with stock at WHWE`);
+
+    // ── Step 3b: Fetch extra product images from Odoo (product.image model) ──
+    const allTemplateIds = allTemplates.map((t) => t.id);
+    const extraImagesByTemplate = new Map<number, OdooProductImage[]>();
+    let extraImagesFetched = 0;
+
+    try {
+        const extraImages = await odooExecute(uid, "product.image", "search_read", [
+            [["product_tmpl_id", "in", allTemplateIds]],
+        ], {
+            fields: ["id", "name", "sequence", "product_tmpl_id", "product_variant_id"],
+            order: "sequence, id",
+        }) as OdooProductImage[];
+
+        for (const img of extraImages) {
+            const tmplId = img.product_tmpl_id[0];
+            if (!extraImagesByTemplate.has(tmplId)) extraImagesByTemplate.set(tmplId, []);
+            extraImagesByTemplate.get(tmplId)!.push(img);
+        }
+        extraImagesFetched = extraImages.length;
+        log.push(`Fetched ${extraImages.length} extra product images from Odoo`);
+    } catch (err) {
+        // product.image model requires website_sale module — skip if unavailable
+        log.push(`WARN: Could not fetch product.image records (website_sale module may not be installed): ${(err as Error).message}`);
+    }
 
     // ── Step 4: Build variant lookup by template ──
     const variantsByTemplate = new Map<number, OdooVariant[]>();
@@ -233,25 +300,75 @@ async function syncProducts(skipImages = false) {
             }
         }
 
-        // Upsert product_images using direct Odoo image URLs (no download needed)
-        const imageRows = batch.map((t) => {
+        // Upload images to Supabase Storage and build imageRows
+        type UploadJob = {
+            supaProductId: number;
+            odooPath: string;
+            storagePath: string;
+            altText: string;
+            displayOrder: number;
+            isPrimary: boolean;
+        };
+
+        const uploadJobs: UploadJob[] = [];
+        for (const t of batch) {
             const supaProductId = supaProductMap.get(t.id);
-            if (!supaProductId) return null;
-            return {
-                product_id: supaProductId,
-                image_url: `${SUPABASE_URL}/functions/v1/proxy-image?path=product.template/${t.id}/image_1920`,
-                alt_text: t.name,
-                display_order: 0,
-                is_primary: true,
-            };
-        }).filter(Boolean);
+            if (!supaProductId) continue;
+
+            uploadJobs.push({
+                supaProductId,
+                odooPath: `product.template/${t.id}/image_1920`,
+                storagePath: `tmpl-${t.id}/0.jpg`,
+                altText: t.name,
+                displayOrder: 0,
+                isPrimary: true,
+            });
+
+            const extras = extraImagesByTemplate.get(t.id) || [];
+            for (let idx = 0; idx < extras.length; idx++) {
+                const extra = extras[idx];
+                uploadJobs.push({
+                    supaProductId,
+                    odooPath: `product.image/${extra.id}/image_1920`,
+                    storagePath: `tmpl-${t.id}/extra-${extra.id}.jpg`,
+                    altText: extra.name || t.name,
+                    displayOrder: idx + 1,
+                    isPrimary: false,
+                });
+            }
+        }
+
+        const uploadResults = await Promise.all(
+            uploadJobs.map(async (job) => {
+                const storageUrl = await uploadImageToStorage(supabase, job.odooPath, job.storagePath);
+                const url = storageUrl ?? `${SUPABASE_URL}/functions/v1/proxy-image?path=${job.odooPath}`;
+                return { ...job, url, fromStorage: storageUrl !== null };
+            })
+        );
+
+        const imageRows = uploadResults.map((r) => ({
+            product_id: r.supaProductId,
+            image_url: r.url,
+            alt_text: r.altText,
+            display_order: r.displayOrder,
+            is_primary: r.isPrimary,
+        }));
 
         if (imageRows.length > 0) {
-            const productIds = imageRows.map((r) => r!.product_id);
-            await supabase.from("product_images").delete().in("product_id", productIds).eq("is_primary", true);
+            const productIds = [...new Set(imageRows.map((r) => r.product_id as number))];
+            await supabase.from("product_images").delete().in("product_id", productIds);
             const { error: imgError } = await supabase.from("product_images").insert(imageRows);
-            if (!imgError) imagesUpserted += imageRows.length;
-            else log.push(`  WARN: Image insert batch ${i}: ${imgError.message}`);
+            if (!imgError) {
+                imagesUpserted += imageRows.length;
+                // Update products.image_url with Storage CDN URL for the primary image
+                for (const r of uploadResults.filter(r => r.isPrimary && r.fromStorage)) {
+                    await supabase.from("products")
+                        .update({ image_url: r.url })
+                        .eq("id", r.supaProductId);
+                }
+            } else {
+                log.push(`  WARN: Image insert batch ${i}: ${imgError.message}`);
+            }
         }
     }
 
@@ -269,7 +386,7 @@ async function syncProducts(skipImages = false) {
     log.push(`\n=== SYNC COMPLETE ===`);
     log.push(`Products upserted: ${productsUpserted}`);
     log.push(`Variants upserted: ${variantsUpserted}`);
-    log.push(`Images uploaded: ${imagesUpserted}`);
+    log.push(`Images synced: ${imagesUpserted} (${extraImagesFetched} extra from Odoo, stored in Supabase Storage CDN)`);
 
     return { success: true, log };
 }

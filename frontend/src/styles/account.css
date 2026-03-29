@@ -1,0 +1,728 @@
+/* ─── Account Layout ─────────────────────────────────────────────────────── */
+.account-layout {
+  display: grid;
+  grid-template-columns: 200px 1fr;
+  gap: 4rem;
+  max-width: 1240px;
+  margin: 0 auto;
+  padding: calc(var(--nav-h) + 4rem) 2rem 6rem;
+  min-height: 100vh;
+}
+
+/* ─── Sidebar ─────────────────────────────────────────────────────────────── */
+.account-sidebar {
+  position: sticky;
+  top: calc(var(--nav-h) + 2rem);
+  height: fit-content;
+}
+
+.sidebar-greeting {
+  font-family: var(--font-serif);
+  font-size: 1.5rem;
+  font-weight: 300;
+  line-height: 1.2;
+  color: var(--ink);
+  margin-bottom: 0.3rem;
+}
+
+.sidebar-email {
+  font-size: 0.72rem;
+  color: var(--ink-muted);
+  margin-bottom: 1.75rem;
+}
+
+.sidebar-divider {
+  width: 2rem;
+  height: 1px;
+  background: var(--sand);
+  margin-bottom: 1.75rem;
+}
+
+.sidebar-nav {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+}
+
+.sidebar-nav-btn {
+  display: flex;
+  align-items: center;
+  gap: 0.65rem;
+  padding: 0.65rem 0 0.65rem 0.75rem;
+  margin-left: -0.75rem;
+  font-size: 0.68rem;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--ink-muted);
+  border: none;
+  border-left: 2px solid transparent;
+  background: none;
+  cursor: pointer;
+  font-family: var(--font-sans);
+  transition: color var(--ease), border-color var(--ease);
+  text-align: left;
+}
+
+.sidebar-nav-btn:hover {
+  color: var(--ink);
+}
+
+.sidebar-nav-btn.active {
+  color: var(--ink);
+  border-left-color: var(--sage);
+}
+
+.sidebar-signout {
+  margin-top: 2.5rem;
+  padding-top: 1.5rem;
+  border-top: 1px solid var(--border);
+}
+
+/* ─── Account Main ────────────────────────────────────────────────────────── */
+.account-main {
+  min-width: 0;
+}
+
+.account-section-title {
+  font-family: var(--font-serif);
+  font-size: clamp(1.6rem, 3vw, 2.2rem);
+  font-weight: 300;
+  line-height: 1.1;
+  margin-bottom: 0.5rem;
+  color: var(--ink);
+}
+
+.account-section-rule {
+  width: 2.5rem;
+  height: 1px;
+  background: var(--sand);
+  margin-bottom: 2.5rem;
+}
+
+.account-loading {
+  padding: 4rem 0;
+  text-align: center;
+  color: var(--ink-muted);
+  font-size: 0.88rem;
+}
+
+.account-empty {
+  text-align: center;
+  padding: 4rem 0;
+  color: var(--ink-muted);
+}
+
+.account-empty svg {
+  opacity: 0.25;
+  margin-bottom: 1rem;
+}
+
+.account-empty p {
+  font-family: var(--font-serif);
+  font-size: 1.3rem;
+  color: var(--ink);
+  margin-bottom: 0.4rem;
+}
+
+.account-empty span {
+  font-size: 0.85rem;
+}
+
+/* ─── Status Badges ──────────────────────────────────────────────────────── */
+.status-badge {
+  display: inline-flex;
+  align-items: center;
+  font-size: 0.6rem;
+  font-weight: 500;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  padding: 0.25rem 0.7rem;
+  font-family: var(--font-sans);
+}
+
+.badge-pending {
+  background: #f5f0e8;
+  color: #9a8a68;
+}
+
+.badge-paid {
+  background: #e9f0e5;
+  color: #5a7c4c;
+}
+
+.badge-processing {
+  background: #edf0f5;
+  color: #5a6e8c;
+}
+
+.badge-shipped {
+  background: #e8edf5;
+  color: #4a5e8c;
+}
+
+.badge-delivered {
+  background: #e5f0e8;
+  color: #3a6e4c;
+}
+
+.badge-cancelled {
+  background: #f5e8e5;
+  color: #8c4a3a;
+}
+
+/* ─── Order Cards ────────────────────────────────────────────────────────── */
+.orders-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+}
+
+.order-card {
+  border: 1px solid var(--border);
+  border-bottom: none;
+}
+
+.order-card:last-child {
+  border-bottom: 1px solid var(--border);
+}
+
+.order-card-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 1.25rem 1.5rem;
+  cursor: pointer;
+  transition: background var(--ease);
+}
+
+.order-card-header:hover {
+  background: var(--bg-alt);
+}
+
+.order-card-meta {
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+}
+
+.order-number {
+  font-family: var(--font-sans);
+  font-size: 0.72rem;
+  font-weight: 500;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--ink);
+}
+
+.order-date {
+  font-size: 0.78rem;
+  color: var(--ink-muted);
+}
+
+.order-card-status {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+}
+
+.order-total {
+  font-family: var(--font-serif);
+  font-size: 1rem;
+}
+
+.order-card-detail {
+  padding: 0 1.5rem 1.5rem;
+  border-top: 1px solid var(--border);
+}
+
+.order-detail-section {
+  padding: 1.25rem 0;
+  border-bottom: 1px solid var(--border);
+}
+
+.order-detail-section:last-child {
+  border-bottom: none;
+  padding-bottom: 0;
+}
+
+.order-detail-label {
+  font-size: 0.65rem;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--ink-muted);
+  margin-bottom: 0.75rem;
+}
+
+/* ─── Order Item Rows ────────────────────────────────────────────────────── */
+.order-item-row {
+  display: grid;
+  grid-template-columns: 64px 1fr auto;
+  gap: 1rem;
+  align-items: center;
+  padding: 0.5rem 0;
+}
+
+.order-item-thumb {
+  width: 64px;
+  height: 80px;
+  background: var(--bg-alt);
+  overflow: hidden;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.order-item-thumb img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.order-item-name {
+  font-family: var(--font-serif);
+  font-size: 0.95rem;
+  color: var(--ink);
+}
+
+.order-item-meta {
+  font-size: 0.78rem;
+  color: var(--ink-muted);
+}
+
+.order-item-subtotal {
+  font-family: var(--font-serif);
+  font-size: 0.9rem;
+  color: var(--ink);
+}
+
+/* ─── Order Tracking ─────────────────────────────────────────────────────── */
+.order-tracking {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  font-size: 0.85rem;
+  color: var(--ink-mid);
+}
+
+.order-eta {
+  margin-left: auto;
+  font-size: 0.78rem;
+  color: var(--sage);
+}
+
+/* ─── Order Timeline ─────────────────────────────────────────────────────── */
+.order-timeline {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+  position: relative;
+  padding-left: 1.5rem;
+}
+
+.order-timeline::before {
+  content: '';
+  position: absolute;
+  left: 6px;
+  top: 8px;
+  bottom: 8px;
+  width: 1px;
+  background: var(--border);
+}
+
+.timeline-entry {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.75rem;
+  padding: 0.4rem 0;
+  position: relative;
+}
+
+.timeline-icon {
+  color: var(--sage);
+  flex-shrink: 0;
+  margin-left: -1.5rem;
+  background: var(--bg);
+  position: relative;
+  z-index: 1;
+}
+
+.timeline-content {
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+}
+
+.timeline-note {
+  font-size: 0.85rem;
+  color: var(--ink);
+}
+
+.timeline-time {
+  font-size: 0.72rem;
+  color: var(--ink-muted);
+}
+
+/* ─── Return Form & Cards ────────────────────────────────────────────────── */
+.return-form textarea {
+  padding: 0.75rem;
+  border: 1px solid var(--border);
+  resize: vertical;
+  min-height: 80px;
+  font-size: 0.88rem;
+}
+
+.return-form-actions {
+  display: flex;
+  gap: 1rem;
+  margin-top: 1rem;
+  align-items: center;
+}
+
+.return-info {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+}
+
+.return-reason {
+  font-size: 0.85rem;
+  color: var(--ink-mid);
+}
+
+.return-admin-note {
+  font-size: 0.8rem;
+  color: var(--sage);
+  display: flex;
+  align-items: center;
+  gap: 0.3rem;
+}
+
+.returns-list {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.return-card {
+  border: 1px solid var(--border);
+  padding: 1.25rem 1.5rem;
+}
+
+.return-card-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 0.75rem;
+}
+
+.return-card-body {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.return-date {
+  font-size: 0.72rem;
+  color: var(--ink-muted);
+}
+
+/* ─── Address Cards ──────────────────────────────────────────────────────── */
+.address-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+  gap: 1rem;
+}
+
+.address-card {
+  border: 1px solid var(--border);
+  padding: 1.25rem 1.5rem;
+  position: relative;
+}
+
+.address-card.address-default {
+  border-color: var(--sage);
+}
+
+.address-default-badge {
+  position: absolute;
+  top: 0.75rem;
+  right: 0.75rem;
+  font-size: 0.58rem;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--sage);
+}
+
+.address-label {
+  font-size: 0.68rem;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--ink);
+  font-weight: 500;
+  margin-bottom: 0.5rem;
+}
+
+.address-text {
+  font-size: 0.85rem;
+  color: var(--ink-mid);
+  line-height: 1.6;
+}
+
+.address-phone {
+  font-size: 0.82rem;
+  color: var(--ink-muted);
+  margin-top: 0.3rem;
+}
+
+.address-actions {
+  display: flex;
+  gap: 0.5rem;
+  margin-top: 0.75rem;
+}
+
+.address-form .form-row {
+  display: flex;
+  gap: 1rem;
+}
+
+/* ─── Wishlist Grid ──────────────────────────────────────────────────────── */
+.wishlist-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(190px, 1fr));
+  gap: 1.5rem;
+}
+
+.wishlist-card {
+  display: flex;
+  flex-direction: column;
+}
+
+.wishlist-card-image {
+  aspect-ratio: 3 / 4;
+  overflow: hidden;
+  background: var(--bg-alt);
+}
+
+.wishlist-card-image img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  transition: transform var(--ease-slow);
+}
+
+.wishlist-card:hover .wishlist-card-image img {
+  transform: scale(1.04);
+}
+
+.wishlist-card-body {
+  padding: 0.75rem 0 0;
+}
+
+.wishlist-card-category {
+  font-size: 0.62rem;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--sage);
+  margin-bottom: 0.2rem;
+}
+
+.wishlist-card-name {
+  font-family: var(--font-serif);
+  font-size: 1rem;
+  color: var(--ink);
+  line-height: 1.3;
+  margin-bottom: 0.2rem;
+}
+
+.wishlist-card-price {
+  font-family: var(--font-serif);
+  font-size: 0.9rem;
+  color: var(--ink-mid);
+}
+
+.wishlist-card-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  margin-top: 0.85rem;
+}
+
+.wishlist-card-actions .btn-primary {
+  width: 100%;
+  justify-content: center;
+  padding: 0.55rem 1rem;
+  font-size: 0.65rem;
+  white-space: nowrap;
+}
+
+.wishlist-card-actions .btn-ghost {
+  font-size: 0.65rem;
+  letter-spacing: 0.1em;
+  color: var(--ink-muted);
+  padding: 0;
+}
+
+/* ─── Profile Section ────────────────────────────────────────────────────── */
+.profile-section {
+  max-width: 420px;
+}
+
+.profile-monogram {
+  width: 72px;
+  height: 72px;
+  border: 1px solid var(--border-dark);
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-family: var(--font-serif);
+  font-size: 1.6rem;
+  font-weight: 300;
+  color: var(--ink-mid);
+  margin-bottom: 1.5rem;
+}
+
+.profile-email {
+  font-family: var(--font-serif);
+  font-size: 1.3rem;
+  margin-bottom: 1.5rem;
+}
+
+.profile-details {
+  border-top: 1px solid var(--border);
+  padding-top: 1rem;
+}
+
+.profile-row {
+  display: flex;
+  justify-content: space-between;
+  padding: 0.6rem 0;
+  border-bottom: 1px solid var(--border);
+  font-size: 0.85rem;
+}
+
+.profile-row span:first-child {
+  color: var(--ink-muted);
+  text-transform: uppercase;
+  font-size: 0.68rem;
+  letter-spacing: 0.12em;
+  align-self: center;
+}
+
+.profile-form {
+  border-top: 1px solid var(--border);
+  padding-top: 1.5rem;
+}
+
+.profile-form .form-row {
+  display: flex;
+  gap: 1rem;
+}
+
+/* ─── Form Row (shared) ──────────────────────────────────────────────────── */
+.form-row {
+  display: flex;
+  gap: 1rem;
+}
+
+/* ─── Mobile sign-out button (hidden on desktop) ────────────────────────── */
+.sidebar-signout-mobile {
+  display: none;
+}
+
+/* ─── Auth Card Override ─────────────────────────────────────────────────── */
+.auth-card {
+  border-top: 2px solid var(--sage);
+  padding-top: 2.5rem;
+}
+
+/* ─── Account Responsive ────────────────────────────────────────────────── */
+@media (max-width: 768px) {
+  .account-layout {
+    grid-template-columns: 1fr;
+    gap: 0;
+    padding-top: calc(var(--nav-h) + 1.5rem);
+    padding-bottom: 4rem;
+  }
+
+  .account-sidebar {
+    position: static;
+    margin-bottom: 0;
+  }
+
+  .sidebar-greeting,
+  .sidebar-email,
+  .sidebar-divider,
+  .sidebar-signout {
+    display: none;
+  }
+
+  .sidebar-nav {
+    flex-direction: row;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    border-bottom: 1px solid var(--border);
+    margin-bottom: 2rem;
+  }
+
+  .sidebar-nav-btn {
+    flex-direction: column;
+    gap: 0.25rem;
+    border-left: none;
+    border-bottom: 2px solid transparent;
+    padding: 0.7rem 1rem;
+    margin-left: 0;
+    white-space: nowrap;
+    font-size: 0.6rem;
+    align-items: center;
+  }
+
+  .sidebar-nav-btn.active {
+    border-left: none;
+    border-bottom-color: var(--sage);
+  }
+
+  .sidebar-signout-mobile {
+    display: flex;
+    align-items: center;
+    justify-content: flex-end;
+    margin-bottom: 1.5rem;
+  }
+
+  .order-card-header {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 0.75rem;
+  }
+
+  .order-card-status {
+    width: 100%;
+    justify-content: space-between;
+  }
+
+  .order-item-row {
+    grid-template-columns: 48px 1fr auto;
+    gap: 0.75rem;
+  }
+
+  .order-item-thumb {
+    width: 48px;
+    height: 60px;
+  }
+
+  .address-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .wishlist-grid {
+    grid-template-columns: repeat(2, 1fr);
+    gap: 1rem;
+  }
+
+  .form-row {
+    flex-direction: column;
+    gap: 0;
+  }
+}
+

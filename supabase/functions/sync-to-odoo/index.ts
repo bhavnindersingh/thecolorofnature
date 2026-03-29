@@ -41,11 +41,20 @@ async function xmlrpcCall(endpoint: string, method: string, params: unknown[]): 
   <params>${params.map(toParam).join("")}</params>
 </methodCall>`;
 
-  const resp = await fetch(`${ODOO_URL}${endpoint}`, {
-    method: "POST",
-    headers: { "Content-Type": "text/xml" },
-    body,
-  });
+  let resp: Response;
+  try {
+    resp = await fetch(`${ODOO_URL}${endpoint}`, {
+      method: "POST",
+      headers: { "Content-Type": "text/xml" },
+      body,
+      signal: AbortSignal.timeout(15_000),
+    });
+  } catch (err) {
+    if (err instanceof DOMException && err.name === "TimeoutError") {
+      throw new Error("Odoo server did not respond within 15 seconds — is it running?");
+    }
+    throw new Error(`Odoo server unreachable: ${(err as Error).message}`);
+  }
 
   const xml = await resp.text();
   return parseXmlRpcResponse(xml);

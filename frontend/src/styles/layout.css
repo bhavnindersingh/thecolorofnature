@@ -1,0 +1,407 @@
+/* ─── Footer ─────────────────────────────────────────────────────────────── */
+
+.footer {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  min-height: 220px;
+}
+
+.footer-left {
+  background: #ffffff;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 1rem;
+  padding: 3rem 5vw;
+  border-top: 1px solid rgba(0, 0, 0, 0.1);
+}
+
+.footer-logo {
+  width: 72px;
+  height: 72px;
+  object-fit: contain;
+}
+
+.footer-brand {
+  font-family: var(--font-sans);
+  font-size: 12px;
+  font-weight: 400;
+  letter-spacing: 0.08em;
+  color: var(--ink);
+  text-align: center;
+}
+
+.footer-right {
+  background: #18336B;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  padding: 2.5rem 3rem;
+}
+
+.footer-dropdowns {
+  display: flex;
+  gap: 3rem;
+  align-items: flex-start;
+}
+
+.footer-dropdown {
+  position: relative;
+}
+
+.footer-dropdown-trigger {
+  background: none;
+  border: none;
+  cursor: pointer;
+  font-family: var(--font-sans);
+  font-size: 13px;
+  font-weight: 400;
+  color: #ffffff;
+  padding: 0;
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+}
+
+.footer-arrow {
+  display: inline-block;
+  width: 6px;
+  height: 6px;
+  border-right: 1.5px solid #ffffff;
+  border-bottom: 1.5px solid #ffffff;
+  transform: rotate(45deg);
+  transition: transform 0.2s ease;
+  margin-bottom: 3px;
+}
+
+.footer-arrow--up {
+  transform: rotate(225deg);
+  margin-bottom: -2px;
+}
+
+.footer-dropdown-menu {
+  list-style: none;
+  margin: 0.75rem 0 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.footer-dropdown-menu li a {
+  font-family: var(--font-sans);
+  font-size: 12px;
+  font-weight: 300;
+  color: rgba(255, 255, 255, 0.7);
+  text-decoration: none;
+}
+
+.footer-dropdown-menu li a:hover {
+  color: #ffffff;
+}
+
+.footer-links {
+  display: flex;
+  gap: 2rem;
+}
+
+.footer-link {
+  font-family: var(--font-sans);
+  font-size: 12px;
+  font-weight: 400;
+  color: rgba(255, 255, 255, 0.7);
+  text-decoration: none;
+}
+
+.footer-link:hover {
+  color: #ffffff;
+}
+
+@media screen and (max-width: 767px) {
+  .footer {
+    grid-template-columns: 1fr;
+  }
+
+  .footer-right {
+    padding: 2rem 1.5rem;
+    gap: 2rem;
+  }
+}
+
+/* ─── Newsletter Bar ─────────────────────────────────────────────────────── */
+
+.newsletter-bar {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  align-items: center;
+  gap: 2rem;
+  padding: 3rem 5vw;
+  background: #ffffff;
+  border-top: 1px solid rgba(0, 0, 0, 0.1);
+}
+
+.newsletter-heading {
+  font-family: var(--font-sans);
+  font-size: 0.7rem;
+  font-weight: 600;
+  letter-spacing: 0.15em;
+  text-transform: uppercase;
+  color: var(--ink);
+  margin: 0 0 0.6rem;
+}
+
+.newsletter-body {
+  font-family: var(--font-sans);
+  font-size: 13px;
+  font-weight: 400;
+  line-height: 1.6;
+  color: var(--ink);
+  margin: 0;
+}
+
+.newsletter-input {
+  width: 100%;
+  background: transparent;
+  border: none;
+  border-bottom: 1px solid rgba(0, 0, 0, 0.3);
+  padding: 0.5rem 0;
+  font-family: var(--font-sans);
+  font-size: 13px;
+  color: var(--ink);
+  outline: none;
+}
+
+.newsletter-input::placeholder {
+  color: rgba(0, 0, 0, 0.4);
+}
+
+/* ─── Partnerships Page ───────────────────────────────────────────────────── */
+
+.partnerships-page {
+  padding-top: var(--nav-h);
+  background-color: #18336B;
+  color: #ffffff;
+}
+
+.partnerships-intro {
+  padding: 5rem 5vw 4rem;
+  text-align: center;
+}
+
+.partnerships-intro-text {
+  font-family: var(--font-sans);
+  font-size: clamp(calc(0.9rem + 3px), calc(1.1vw + 3px), calc(1rem + 3px));
+  font-weight: 300;
+  line-height: 1.8;
+  color: rgba(255, 255, 255, 0.85);
+  max-width: 600px;
+  margin: 0 auto;
+}
+
+.partnerships-logo-runner {
+  overflow: hidden;
+  padding: 2.5rem 0;
+  border-top: 1px solid rgba(255, 255, 255, 0.1);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.partnerships-logo-track {
+  display: flex;
+  width: max-content;
+  animation: partnerships-scroll 28s linear infinite;
+}
+
+.partnerships-logo-item {
+  flex-shrink: 0;
+  padding: 0 3.5rem;
+  display: flex;
+  align-items: center;
+}
+
+.partnerships-logo-item img {
+  height: 40px;
+  width: auto;
+  display: block;
+  opacity: 0.6;
+}
+
+@keyframes partnerships-scroll {
+  from { transform: translateX(0); }
+  to   { transform: translateX(-50%); }
+}
+
+.partnerships-list {
+  display: flex;
+  flex-direction: column;
+}
+
+.partnerships-entry {
+  display: flex;
+  align-items: stretch;
+  min-height: 65vh;
+}
+
+.partnerships-entry--reverse {
+  flex-direction: row-reverse;
+}
+
+.partnerships-entry-image {
+  flex: 1;
+  overflow: hidden;
+}
+
+.partnerships-entry-image img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.partnerships-entry-text {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-start;
+  padding: 5rem 5vw;
+  gap: 0;
+}
+
+.partnerships-entry-tag {
+  font-family: var(--font-sans);
+  font-size: 0.65rem;
+  font-weight: 600;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  color: rgba(255, 255, 255, 0.5);
+  margin-bottom: 1.2rem;
+  display: block;
+}
+
+.partnerships-entry-heading {
+  font-family: var(--font-serif);
+  font-size: clamp(2rem, 3vw, 3.2rem);
+  font-weight: 300;
+  line-height: 1.15;
+  color: #ffffff;
+  margin: 0 0 1rem;
+}
+
+.partnerships-entry-subheading {
+  font-family: var(--font-sans);
+  font-size: clamp(0.85rem, 1vw, 1rem);
+  font-weight: 300;
+  color: rgba(255, 255, 255, 0.6);
+  margin: 0 0 2rem;
+  line-height: 1.6;
+}
+
+.partnerships-entry-body {
+  display: flex;
+  flex-direction: column;
+  gap: 1.2rem;
+}
+
+.partnerships-entry-para {
+  font-family: var(--font-sans);
+  font-size: clamp(0.9rem, 1.1vw, 1rem);
+  font-weight: 300;
+  line-height: 1.8;
+  color: rgba(255, 255, 255, 0.85);
+  margin: 0;
+}
+
+/* ─── About Page: Meet the Team ─────────────────────────────────────────── */
+
+.meet-team-section {
+  padding: 2rem 5vw 6rem calc(28vw + 1.8rem);
+  text-align: left;
+}
+
+.meet-team-heading {
+  font-family: var(--font-serif);
+  font-size: clamp(calc(2rem - 4px), calc(4vw - 4px), calc(3.2rem - 4px));
+  font-weight: 300;
+  letter-spacing: normal;
+  color: #ffffff;
+  margin: 0 0 1.5rem;
+}
+
+.meet-team-body {
+  font-family: var(--font-sans);
+  font-size: clamp(0.9rem, 1.1vw, 1rem);
+  font-weight: 300;
+  line-height: 1.8;
+  color: rgba(255, 255, 255, 0.85);
+  max-width: 600px;
+  margin: 0 0 3rem;
+}
+
+.meet-team-image-wrap {
+  margin-left: calc(-1 * (28vw + 1.8rem));
+  margin-right: -5vw;
+}
+
+.meet-team-image-wrap img {
+  width: 100%;
+  height: auto;
+  display: block;
+}
+
+@media screen and (max-width: 767px) {
+  .partnerships-entry {
+    flex-direction: column;
+    min-height: auto;
+  }
+
+  .partnerships-entry--reverse {
+    flex-direction: column;
+  }
+
+  .partnerships-entry-image img {
+    height: 60vw;
+  }
+
+  .partnerships-entry-text {
+    padding: 3rem 1.5rem;
+  }
+}
+
+/* ─── Google Places Autocomplete Dropdown ──────────────────────────────────── */
+.pac-container {
+  font-family: var(--font-sans, 'Jost', sans-serif);
+  font-size: 0.88rem;
+  border: 1px solid var(--border, #e0ddd6);
+  border-top: none;
+  border-radius: 0 0 2px 2px;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.06);
+  background: var(--surface, #fff);
+  z-index: 9999;
+}
+
+.pac-item {
+  padding: 0.5rem 0.75rem;
+  cursor: pointer;
+  color: var(--ink-mid, #555);
+  border-top: 1px solid var(--border, #e0ddd6);
+  line-height: 1.4;
+}
+
+.pac-item:hover,
+.pac-item-selected {
+  background: var(--bg-alt, #faf8f5);
+}
+
+.pac-item-query {
+  font-size: 0.88rem;
+  color: var(--ink, #2d2d2d);
+}
+
+.pac-icon {
+  display: none;
+}
+
+.pac-logo::after {
+  display: none;
+}
+

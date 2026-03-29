@@ -12,7 +12,7 @@ jobs:
       - name: Trigger odoo-poll edge function
         run: |
           curl -s -X POST \
-            https://kfcppshcibxhayduqbzv.supabase.co/functions/v1/odoo-poll \
+            ${{ secrets.SUPABASE_URL }}/functions/v1/odoo-poll \
             -H "Authorization: Bearer ${{ secrets.ODOO_WEBHOOK_SECRET }}" \
             -H "Content-Type: application/json" \
             --fail-with-body

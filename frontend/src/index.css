@@ -789,7 +789,9 @@ button {
 .product-grid {
   display: grid;
   grid-template-columns: repeat(3, 1fr);
-  gap: 1.5rem;
+  gap: 1px;
+  background: var(--border);
+  border: 1px solid var(--border);
 }
 
 .product-card {
@@ -797,8 +799,6 @@ button {
   position: relative;
   overflow: hidden;
   cursor: pointer;
-  border-radius: 4px;
-  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.18);
 }
 
 .product-card-image-wrap {
@@ -859,7 +859,7 @@ button {
 
 .product-card-add-btn {
   width: 100%;
-  background: var(--sage);
+  background: var(--ink);
   color: var(--bg);
   font-size: 0.68rem;
   letter-spacing: 0.18em;
@@ -893,13 +893,13 @@ button {
   font-family: var(--font-serif);
   font-size: 1.1rem;
   font-weight: 400;
-  color: var(--sage);
+  color: var(--ink);
   margin-bottom: 0.3rem;
 }
 
 .product-card-desc {
   font-size: 0.8rem;
-  color: var(--sage);
+  color: var(--ink-muted);
   margin-bottom: 0.75rem;
   display: -webkit-box;
   -webkit-line-clamp: 2;
@@ -917,7 +917,7 @@ button {
 .product-card-price {
   font-family: var(--font-serif);
   font-size: 1rem;
-  color: var(--sage);
+  color: var(--ink);
 }
 
 /* ─── CTA Banner ──────────────────────────────────────────────────────────── */
@@ -1345,7 +1345,6 @@ button {
 @media (max-width: 480px) {
   .product-grid {
     grid-template-columns: 1fr;
-    gap: 1rem;
   }
 }
 
@@ -1372,22 +1371,6 @@ button {
 .product-card:hover .product-card-image--hover {
   opacity: 1;
   transform: scale(1.04);
-}
-
-/* ─── Out of stock badge ───────────────────────────────────────────────────── */
-.product-card-oos-badge {
-  position: absolute;
-  top: 0.75rem;
-  left: 0.75rem;
-  background: rgba(255,255,255,0.88);
-  color: var(--sage);
-  font-size: 0.65rem;
-  font-weight: 600;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-  padding: 0.2rem 0.55rem;
-  border-radius: 2px;
-  pointer-events: none;
 }
 
 /* ─── Wishlist button ──────────────────────────────────────────────────────── */
@@ -1433,15 +1416,13 @@ button {
 .product-card-sizes {
   font-size: 0.65rem;
   letter-spacing: 0.1em;
-  color: var(--sage);
+  color: var(--ink-muted);
 }
 
 /* ─── Shop Page ─────────────────────────────────────────────────────────────── */
 .shop-page {
   padding-top: calc(var(--nav-h) + 4rem);
   padding-bottom: 8rem;
-  background-color: #18336B;
-  min-height: 100vh;
 }
 
 /* Hero header — split two-column */
@@ -1463,13 +1444,13 @@ button {
   font-size: clamp(2.4rem, 5vw, 4rem);
   font-weight: 300;
   line-height: 1.05;
-  color: var(--sage);
+  color: var(--ink);
   margin: 0.5rem 0 0;
 }
 
 .shop-hero-desc {
   font-size: 0.85rem;
-  color: var(--sage);
+  color: var(--ink-muted);
   line-height: 1.85;
   max-width: 320px;
   text-align: right;
@@ -1502,7 +1483,7 @@ button {
   padding-bottom: 1rem;
   /* Add initial padding and allow scrolling past the last item */
   padding-left: 1rem;
-  padding-right: 1rem;
+  padding-right: 50vw;
 
   /* Hide scrollbar for cleaner look, but retain scroll function */
   -ms-overflow-style: none;
@@ -1519,7 +1500,7 @@ button {
   font-size: 0.68rem;
   letter-spacing: 0.12em;
   text-transform: uppercase;
-  color: var(--sage);
+  color: var(--ink-muted);
   padding: 0.5rem 0;
   transition: all var(--ease);
   white-space: nowrap;
@@ -1537,12 +1518,12 @@ button {
   left: 0;
   right: 100%;
   height: 1px;
-  background: var(--sage);
+  background: var(--ink);
   transition: right var(--ease);
 }
 
 .shop-cat-tab:hover {
-  color: var(--sage);
+  color: var(--ink);
 }
 
 .shop-cat-tab:hover::after {
@@ -1550,7 +1531,7 @@ button {
 }
 
 .shop-cat-tab.active {
-  color: var(--sage);
+  color: var(--ink);
 }
 
 .shop-cat-tab.active::after {
@@ -1562,7 +1543,7 @@ button {
 .shop-count {
   font-size: 0.65rem;
   letter-spacing: 0.12em;
-  color: var(--sage);
+  color: var(--ink-muted);
   text-transform: uppercase;
   white-space: nowrap;
 }
@@ -1572,7 +1553,7 @@ button {
   font-size: 0.66rem;
   letter-spacing: 0.1em;
   text-transform: uppercase;
-  color: var(--sage);
+  color: var(--ink-mid);
   border: none;
   border-bottom: 1px solid var(--border);
   background: transparent;
@@ -1582,7 +1563,7 @@ button {
   transition: border-color var(--ease);
   appearance: none;
   -webkit-appearance: none;
-  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='8' height='5'%3E%3Cpath d='M0 0l4 5 4-5z' fill='%236b7c5c'/%3E%3C/svg%3E");
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='8' height='5'%3E%3Cpath d='M0 0l4 5 4-5z' fill='%238a8a82'/%3E%3C/svg%3E");
   background-repeat: no-repeat;
   background-position: right 0 center;
 }
@@ -1596,7 +1577,7 @@ button {
 .shop-empty {
   text-align: center;
   padding: 6rem 0;
-  color: var(--sage);
+  color: var(--ink-muted);
 }
 
 .shop-empty-icon {
@@ -3151,7 +3132,6 @@ details[open] .pdp-accordion-head::after {
   font-weight: 600;
   letter-spacing: 0.2em;
   text-transform: uppercase;
-  color: var(--sage);
   opacity: 0.6;
 }
 
@@ -3835,8 +3815,8 @@ details[open] .pdp-accordion-head::after {
 }
 
 .footer-logo {
-  width: 72px;
-  height: 72px;
+  height: 140px;
+  width: auto;
   object-fit: contain;
 }
 
@@ -4182,42 +4162,4 @@ details[open] .pdp-accordion-head::after {
   .partnerships-entry-text {
     padding: 3rem 1.5rem;
   }
-}
-
-/* ─── Google Places Autocomplete Dropdown ──────────────────────────────────── */
-.pac-container {
-  font-family: var(--font-sans, 'Jost', sans-serif);
-  font-size: 0.88rem;
-  border: 1px solid var(--border, #e0ddd6);
-  border-top: none;
-  border-radius: 0 0 2px 2px;
-  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.06);
-  background: var(--surface, #fff);
-  z-index: 9999;
-}
-
-.pac-item {
-  padding: 0.5rem 0.75rem;
-  cursor: pointer;
-  color: var(--ink-mid, #555);
-  border-top: 1px solid var(--border, #e0ddd6);
-  line-height: 1.4;
-}
-
-.pac-item:hover,
-.pac-item-selected {
-  background: var(--bg-alt, #faf8f5);
-}
-
-.pac-item-query {
-  font-size: 0.88rem;
-  color: var(--ink, #2d2d2d);
-}
-
-.pac-icon {
-  display: none;
-}
-
-.pac-logo::after {
-  display: none;
 }

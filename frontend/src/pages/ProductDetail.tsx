@@ -1,4 +1,6 @@
 import { useState } from 'react'
+import Zoom from 'react-medium-image-zoom'
+import 'react-medium-image-zoom/dist/styles.css'
 import { useParams, Link, useNavigate } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
 import { ArrowLeft, Heart, ChevronLeft, ChevronRight, ShoppingBag } from 'lucide-react'
@@ -136,7 +138,7 @@ export default function ProductDetail() {
                                         onClick={() => setActiveImg(i)}
                                         aria-label={`View image ${i + 1}`}
                                     >
-                                        <img src={img.image_url} alt={img.alt_text ?? product.name} />
+                                        <img src={img.image_url} alt={img.alt_text ?? product.name} loading="lazy" />
                                     </button>
                                 ))}
                             </div>
@@ -145,7 +147,7 @@ export default function ProductDetail() {
                         {/* Main image */}
                         <div className="pdp-main-img-wrap">
                             {currentImageSrc
-                                ? <img src={currentImageSrc} alt={product.name} className="pdp-main-img" key={currentImageSrc} />
+                                ? <Zoom key={currentImageSrc}><img src={currentImageSrc} alt={product.name} className="pdp-main-img" /></Zoom>
                                 : <div className="product-card-placeholder" style={{ aspectRatio: '3/4' }}>🌿</div>
                             }
                             {allImages.length > 1 && (

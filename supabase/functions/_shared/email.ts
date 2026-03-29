@@ -2,7 +2,7 @@
 // Set RESEND_API_KEY and RESEND_FROM_EMAIL as Supabase Edge Function secrets
 
 const RESEND_API_KEY = Deno.env.get("RESEND_API_KEY");
-const FROM_EMAIL = Deno.env.get("RESEND_FROM_EMAIL") || "orders@coloursofnature.com";
+const FROM_EMAIL = Deno.env.get("RESEND_FROM_EMAIL") || "shop@thecoloursofnature.com";
 
 // ─── Core sender ──────────────────────────────────────────────────────────────
 
@@ -177,7 +177,7 @@ export function buildOrderConfirmationEmail(
     `<tr>
       <td style="padding: 8px 0; border-bottom: 1px solid #f0ede8;">${i.name}</td>
       <td style="padding: 8px 0; border-bottom: 1px solid #f0ede8; text-align: center;">${i.quantity}</td>
-      <td style="padding: 8px 0; border-bottom: 1px solid #f0ede8; text-align: right;">£${(i.unit_price * i.quantity).toFixed(2)}</td>
+      <td style="padding: 8px 0; border-bottom: 1px solid #f0ede8; text-align: right;">₹${(i.unit_price * i.quantity).toFixed(2)}</td>
     </tr>`
   ).join("");
   return {
@@ -197,7 +197,7 @@ export function buildOrderConfirmationEmail(
         <tfoot>
           <tr>
             <td colspan="2" style="padding: 12px 0 0; font-weight: bold;">Total</td>
-            <td style="padding: 12px 0 0; text-align: right; font-weight: bold;">£${total.toFixed(2)}</td>
+            <td style="padding: 12px 0 0; text-align: right; font-weight: bold;">₹${total.toFixed(2)}</td>
           </tr>
         </tfoot>
       </table>
@@ -270,21 +270,60 @@ export function buildReturnCompletedEmail(
 export function buildReturnApprovalEmail(
   customerName: string,
   orderRef: string,
-  instructions: string,
+  instructions: string | null,
 ): { subject: string; html: string } {
+  const instructionsBlock = instructions
+    ? `<div style="background: #f5f3ef; padding: 16px; border-radius: 8px; margin: 20px 0;">
+        <h3 style="margin-top: 0; color: #4a5e3a;">Return Instructions</h3>
+        <p style="white-space: pre-wrap; margin: 0;">${instructions}</p>
+      </div>`
+    : `<p>We will be in touch shortly with return instructions.</p>`;
   return {
     subject: `Return Approved — Order #${orderRef}`,
     html: layout(`
       <h2 style="color: #4a5e3a; margin-top: 0;">Return Request Approved</h2>
       <p>Dear ${customerName},</p>
       <p>Your return request for order <strong>#${orderRef}</strong> has been approved.</p>
-      <div style="background: #f5f3ef; padding: 16px; border-radius: 8px; margin: 20px 0;">
-        <h3 style="margin-top: 0; color: #4a5e3a;">Return Instructions</h3>
-        <p style="white-space: pre-wrap; margin: 0;">${instructions}</p>
-      </div>
+      ${instructionsBlock}
       <p>Once you have shipped the item, please log in to your account and mark the return as shipped.</p>
       <p style="color: #888; font-size: 0.85em;">
         If you have any questions, reply to this email or contact us at shop@thecoloursofnature.com
+      </p>
+    `),
+  };
+}
+
+export function buildOrderCancelledEmail(
+  customerName: string,
+  orderRef: string,
+  adminNote: string | null,
+): { subject: string; html: string } {
+  return {
+    subject: `Order Cancelled — #${orderRef}`,
+    html: layout(`
+      <h2 style="color: #4a5e3a; margin-top: 0;">Order Cancelled</h2>
+      <p>Dear ${customerName},</p>
+      <p>Your order <strong>#${orderRef}</strong> has been cancelled.</p>
+      ${adminNote ? `<div style="background: #f5f3ef; padding: 16px; border-radius: 8px; margin: 20px 0;"><p style="margin: 0;">${adminNote}</p></div>` : ""}
+      <p>If you believe this is a mistake or have questions, please contact us at
+        <a href="mailto:shop@thecoloursofnature.com" style="color: #4a5e3a;">shop@thecoloursofnature.com</a>.
+      </p>
+    `),
+  };
+}
+
+export function buildOrderDeliveredEmail(
+  customerName: string,
+  orderRef: string,
+): { subject: string; html: string } {
+  return {
+    subject: `Your order has been delivered — #${orderRef}`,
+    html: layout(`
+      <h2 style="color: #4a5e3a; margin-top: 0;">Order Delivered</h2>
+      <p>Dear ${customerName},</p>
+      <p>Your order <strong>#${orderRef}</strong> has been marked as delivered. We hope you love your purchase!</p>
+      <p>If you have any issues with your order, please contact us at
+        <a href="mailto:shop@thecoloursofnature.com" style="color: #4a5e3a;">shop@thecoloursofnature.com</a>.
       </p>
     `),
   };

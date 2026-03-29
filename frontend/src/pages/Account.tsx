@@ -1,4 +1,5 @@
-import { useState, useEffect } from 'react'
+import { useState } from 'react'
+import { Link } from 'react-router-dom'
 import PlacesAutocomplete from '../components/PlacesAutocomplete'
 import type { User } from '@supabase/supabase-js'
 import {
@@ -12,7 +13,7 @@ import type { Order, ReturnRequest, Profile, Address, Product } from '../lib/sup
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { useAuth } from '../contexts/AuthContext'
 import {
-    LogOut, Package, RotateCcw, MapPin, User as UserIcon, Heart, ShoppingBag, Trash2,
+    LogOut, Package, RotateCcw, MapPin, User as UserIcon, Heart,
     ChevronDown, ChevronUp, Clock, Truck, CheckCircle, XCircle, AlertCircle, Star,
     Eye, EyeOff, Send,
 } from 'lucide-react'
@@ -410,7 +411,7 @@ function WishlistTab() {
     }
 
     return (
-        <div className="address-grid">
+        <div className="wishlist-grid">
             {wishlist.map((item) => {
                 const product = item.product
                 if (!product) return null
@@ -419,31 +420,36 @@ function WishlistTab() {
                     ?? product.product_images?.[0]?.image_url
                     ?? product.image_url
                 return (
-                    <div className="address-card" key={item.id} style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
-                        <div style={{ display: 'flex', gap: '0.75rem', alignItems: 'flex-start' }}>
-                            <div style={{ width: 64, height: 80, borderRadius: 6, overflow: 'hidden', flexShrink: 0, background: 'var(--cream)' }}>
-                                {img ? <img src={img} alt={product.name} style={{ width: '100%', height: '100%', objectFit: 'cover' }} /> : null}
+                    <div className="wishlist-card" key={item.id}>
+                        <Link to={`/product/${product.id}`}>
+                            <div className="wishlist-card-image">
+                                {img
+                                    ? <img src={img} alt={product.name} />
+                                    : <div style={{ width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '2rem' }}>🌿</div>
+                                }
                             </div>
-                            <div style={{ flex: 1 }}>
-                                <div style={{ fontWeight: 500, fontSize: '0.9rem' }}>{product.name}</div>
-                                {product.category && <div style={{ fontSize: '0.78rem', color: 'var(--ink-muted)', marginTop: '0.15rem' }}>{product.category}</div>}
-                                <div style={{ fontWeight: 600, marginTop: '0.35rem' }}>{'\u20B9'}{product.price.toFixed(2)}</div>
-                                {!product.in_stock && <span className="status-badge badge-cancelled" style={{ fontSize: '0.7rem', marginTop: '0.25rem' }}>Out of Stock</span>}
-                            </div>
-                        </div>
-                        <div className="address-actions">
-                            {product.in_stock && (
-                                <button className="btn btn-primary btn-sm" onClick={() => addToCart(product)}>
-                                    <ShoppingBag size={12} /> Add to Cart
+                        </Link>
+                        <div className="wishlist-card-body">
+                            {product.category && <div className="wishlist-card-category">{product.category}</div>}
+                            <Link to={`/product/${product.id}`}>
+                                <div className="wishlist-card-name">{product.name}</div>
+                            </Link>
+                            <div className="wishlist-card-price">₹{product.price.toLocaleString('en-IN')}</div>
+                            {!product.in_stock && <span className="status-badge badge-cancelled" style={{ marginTop: '0.4rem' }}>Out of Stock</span>}
+                            <div className="wishlist-card-actions">
+                                {product.in_stock && (
+                                    <button className="btn btn-primary" onClick={() => addToCart(product)}>
+                                        + Add to Cart
+                                    </button>
+                                )}
+                                <button
+                                    className="btn btn-ghost"
+                                    disabled={removeMutation.isPending}
+                                    onClick={() => removeMutation.mutate(product.id)}
+                                >
+                                    Remove
                                 </button>
-                            )}
-                            <button
-                                className="btn btn-ghost btn-sm"
-                                disabled={removeMutation.isPending}
-                                onClick={() => removeMutation.mutate(product.id)}
-                            >
-                                <Trash2 size={12} /> Remove
-                            </button>
+                            </div>
                         </div>
                     </div>
                 )
@@ -638,16 +644,6 @@ function ProfileTab({ user }: { user: User }) {
         staleTime: STALE_5MIN,
     })
 
-    useEffect(() => {
-        if (profile) {
-            setFormData({
-                first_name: profile.first_name ?? '',
-                last_name: profile.last_name ?? '',
-                phone: profile.phone ?? '',
-            })
-        }
-    }, [profile])
-
     const updateMutation = useMutation({
         mutationFn: (data: typeof formData) => updateMyProfile(data),
         onSuccess: () => {
@@ -659,11 +655,14 @@ function ProfileTab({ user }: { user: User }) {
     if (isLoading) return <div className="account-loading">Loading…</div>
     if (error) return <div className="account-empty"><AlertCircle size={32} strokeWidth={1} /><p>Could not load profile</p></div>
 
+    const initials = [profile?.first_name, profile?.last_name]
+        .filter(Boolean)
+        .map(s => s![0].toUpperCase())
+        .join('') || user.email[0].toUpperCase()
+
     return (
         <div className="profile-section">
-            <div className="profile-avatar">
-                <UserIcon size={40} strokeWidth={1} />
-            </div>
+            <div className="profile-monogram">{initials}</div>
             <div className="profile-email">{profile?.first_name ? `${profile.first_name} ${profile.last_name ?? ''}`.trim() : user.email}</div>
 
             {editing ? (
@@ -698,7 +697,7 @@ function ProfileTab({ user }: { user: User }) {
                     <div className="profile-row"><span>Email</span><span>{user.email}</span></div>
                     <div className="profile-row"><span>Name</span><span>{profile?.first_name} {profile?.last_name}</span></div>
                     <div className="profile-row"><span>Phone</span><span>{profile?.phone || '—'}</span></div>
-                    <button className="btn btn-outline btn-sm" onClick={() => setEditing(true)} style={{ marginTop: '1.5rem' }}>
+                    <button className="btn btn-outline btn-sm" onClick={() => { setFormData({ first_name: profile?.first_name ?? '', last_name: profile?.last_name ?? '', phone: profile?.phone ?? '' }); setEditing(true) }} style={{ marginTop: '1.5rem' }}>
                         <UserIcon size={12} /> Edit Profile
                     </button>
                 </div>
@@ -810,32 +809,52 @@ export default function Account() {
 
     /* ── Signed in: Dashboard ───────────────────────────────────── */
     if (user) {
+        const firstName = user.user_metadata?.full_name?.split(' ')[0] ?? null
+
         return (
-            <main className="account-page">
-                <div className="container">
-                    <div className="account-header">
-                        <div>
-                            <h1 className="account-title">My Account</h1>
-                            <div className="account-email">{user.email}</div>
+            <main>
+                <div className="account-layout">
+                    {/* Sidebar */}
+                    <aside className="account-sidebar">
+                        <div className="sidebar-greeting">
+                            {firstName ? `Hello, ${firstName}` : 'My Account'}
                         </div>
-                        <button onClick={handleLogout} className="btn btn-ghost">
-                            <LogOut size={14} strokeWidth={1.5} /> Sign Out
-                        </button>
-                    </div>
+                        <div className="sidebar-email">{user.email}</div>
+                        <div className="sidebar-divider" />
 
-                    <div className="account-tabs">
-                        {TABS.map((tab) => (
-                            <button
-                                key={tab.key}
-                                className={`account-tab${activeTab === tab.key ? ' active' : ''}`}
-                                onClick={() => setActiveTab(tab.key)}
-                            >
-                                {tab.icon} {tab.label}
+                        <nav className="sidebar-nav">
+                            {TABS.map((tab) => (
+                                <button
+                                    key={tab.key}
+                                    className={`sidebar-nav-btn${activeTab === tab.key ? ' active' : ''}`}
+                                    onClick={() => setActiveTab(tab.key)}
+                                >
+                                    {tab.icon} {tab.label}
+                                </button>
+                            ))}
+                        </nav>
+
+                        <div className="sidebar-signout">
+                            <button onClick={handleLogout} className="btn btn-ghost btn-sm">
+                                <LogOut size={13} strokeWidth={1.5} /> Sign Out
                             </button>
-                        ))}
-                    </div>
+                        </div>
+                    </aside>
 
-                    <div className="account-content">
+                    {/* Content */}
+                    <div className="account-main">
+                        {/* Mobile sign-out (hidden on desktop via CSS) */}
+                        <div className="sidebar-signout-mobile">
+                            <button onClick={handleLogout} className="btn btn-ghost btn-sm">
+                                <LogOut size={13} strokeWidth={1.5} /> Sign Out
+                            </button>
+                        </div>
+
+                        <h2 className="account-section-title">
+                            {TABS.find(t => t.key === activeTab)?.label}
+                        </h2>
+                        <div className="account-section-rule" />
+
                         {activeTab === 'orders'    && <OrdersTab />}
                         {activeTab === 'returns'   && <ReturnsTab />}
                         {activeTab === 'wishlist'  && <WishlistTab />}

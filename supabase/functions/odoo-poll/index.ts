@@ -3,15 +3,23 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
 // ─── Environment ─────────────────────────────────────────────────────────────
 
-const ODOO_URL = Deno.env.get("ODOO_URL")!;
-const ODOO_DB = Deno.env.get("ODOO_DB")!;
-const ODOO_USERNAME = Deno.env.get("ODOO_USERNAME")!;
-const ODOO_API_KEY = Deno.env.get("ODOO_API_KEY")!;
-const ODOO_WEB_LOCATION_ID = parseInt(Deno.env.get("ODOO_WEB_LOCATION_ID") || "74");
+function requireEnv(name: string): string {
+    const val = Deno.env.get(name);
+    if (!val) throw new Error(`Missing required env var: ${name}`);
+    return val;
+}
 
-const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
-const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
-const ODOO_WEBHOOK_SECRET = Deno.env.get("ODOO_WEBHOOK_SECRET")!;
+const ODOO_URL = requireEnv("ODOO_URL");
+const ODOO_DB = requireEnv("ODOO_DB");
+const ODOO_USERNAME = requireEnv("ODOO_USERNAME");
+const ODOO_API_KEY = requireEnv("ODOO_API_KEY");
+const _odooLocationRaw = requireEnv("ODOO_WEB_LOCATION_ID");
+const ODOO_WEB_LOCATION_ID = parseInt(_odooLocationRaw, 10);
+if (isNaN(ODOO_WEB_LOCATION_ID)) throw new Error(`ODOO_WEB_LOCATION_ID must be a number, got: "${_odooLocationRaw}"`);
+
+const SUPABASE_URL = requireEnv("SUPABASE_URL");
+const SUPABASE_SERVICE_ROLE_KEY = requireEnv("SUPABASE_SERVICE_ROLE_KEY");
+const ODOO_WEBHOOK_SECRET = requireEnv("ODOO_WEBHOOK_SECRET");
 
 const corsHeaders = {
     "Access-Control-Allow-Origin": "*",
@@ -172,7 +180,11 @@ async function triggerProductSync() {
         },
         body: JSON.stringify({}),
     });
-    return resp.json().catch(() => ({}));
+    if (!resp.ok) {
+        const text = await resp.text().catch(() => resp.statusText);
+        throw new Error(`sync-products returned ${resp.status}: ${text}`);
+    }
+    return resp.json();
 }
 
 // ─── Main handler ─────────────────────────────────────────────────────────────
