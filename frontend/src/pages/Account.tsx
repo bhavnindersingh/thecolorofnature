@@ -718,7 +718,7 @@ function ProfileTab({ user }: { user: User }) {
     const initials = [profile?.first_name, profile?.last_name]
         .filter(Boolean)
         .map(s => s![0].toUpperCase())
-        .join('') || user.email[0].toUpperCase()
+        .join('') || (user.email ?? '?')[0].toUpperCase()
 
     return (
         <div className="profile-section">

@@ -16,6 +16,7 @@ export default function ProductDetail() {
     const [wished, setWished] = useState(false)
     const [addedMsg, setAddedMsg] = useState(false)
     const [sizeError, setSizeError] = useState(false)
+    const [stockError, setStockError] = useState('')
 
     const { data: product, isLoading, error } = useQuery({
         queryKey: ['product', id],
@@ -61,9 +62,22 @@ export default function ProductDetail() {
             setSizeError(true)
             return
         }
+        setStockError('')
+
+        // Check stock: count how many of this variant are already in cart
+        const cart: Array<{ id: number; selectedVariant?: { id: number } | null }> =
+            JSON.parse(localStorage.getItem('cart') || '[]')
+        const inCart = cart.filter(c =>
+            selectedVariant ? c.selectedVariant?.id === selectedVariant.id : c.id === product?.id
+        ).length
+        const stock = selectedVariant?.stock_quantity ?? 0
+        if (stock > 0 && inCart + 1 > stock) {
+            setStockError(`Only ${stock} available${inCart > 0 ? ` (${inCart} already in cart)` : ''}`)
+            return
+        }
+
         const cartItem = { ...product, selectedSize, selectedVariant }
-        const cart: unknown[] = JSON.parse(localStorage.getItem('cart') || '[]')
-        cart.push(cartItem)
+        cart.push(cartItem as { id: number; selectedVariant?: { id: number } | null })
         localStorage.setItem('cart', JSON.stringify(cart))
         window.dispatchEvent(new Event('cart-updated'))
         setAddedMsg(true)
@@ -218,6 +232,19 @@ export default function ProductDetail() {
                                         )
                                     })}
                                 </div>
+                            </div>
+                        )}
+
+                        {/* Stock info */}
+                        {selectedVariant && selectedVariant.stock_quantity > 0 && selectedVariant.stock_quantity <= 5 && (
+                            <div style={{ fontSize: '0.82rem', color: '#c53030' }}>
+                                Only {selectedVariant.stock_quantity} left in stock
+                            </div>
+                        )}
+
+                        {stockError && (
+                            <div style={{ fontSize: '0.82rem', color: '#c53030', marginBottom: '0.25rem' }}>
+                                {stockError}
                             </div>
                         )}
 
