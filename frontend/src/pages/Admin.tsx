@@ -2,9 +2,10 @@ import { useState, useEffect, useCallback } from 'react'
 import { useQueryClient, useQuery } from '@tanstack/react-query'
 import {
     RefreshCw, LogOut, ChevronDown, ChevronUp,
-    CheckCircle, XCircle, AlertTriangle, Truck, Clock, Package, Search
+    CheckCircle, XCircle, AlertTriangle, Truck, Clock, Package, Search, Mail, Lock, ArrowLeft
 } from 'lucide-react'
 import { supabase } from '../lib/supabase'
+import type { User } from '@supabase/supabase-js'
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -65,7 +66,7 @@ type Tab = 'all' | 'failed_odoo' | 'pending_returns' | 'event_log'
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
-const SESSION_KEY = 'admin_pin'
+const ADMIN_EMAIL = 'bhavnindersingh@gmail.com'
 
 const STATUS_LABELS: Record<OrderStatus, string> = {
     pending: 'Pending', paid: 'Paid', processing: 'Processing',
@@ -82,15 +83,16 @@ const STATUS_ICONS: Record<OrderStatus, React.ReactNode> = {
 
 // ─── Admin API helper ─────────────────────────────────────────────────────────
 
-function getPin() {
-    return sessionStorage.getItem(SESSION_KEY) ?? ''
-}
-
 async function adminCall<T = unknown>(action: string, payload: Record<string, unknown> = {}): Promise<T> {
-    const pin = getPin()
+    const { data: { session } } = await supabase.auth.getSession()
+    if (!session?.access_token) {
+        await supabase.auth.signOut()
+        window.location.reload()
+        throw new Error('Session expired')
+    }
     const { data, error, response } = await supabase.functions.invoke('admin', {
         body: { action, payload },
-        headers: { Authorization: `Bearer ${pin}` },
+        headers: { Authorization: `Bearer ${session.access_token}` },
     })
     if (error) {
         let msg = 'Request failed'
@@ -104,8 +106,8 @@ async function adminCall<T = unknown>(action: string, payload: Record<string, un
         } else {
             msg = (error as { message?: string }).message ?? msg
         }
-        if (msg.includes('401') || msg.toLowerCase().includes('unauthorized')) {
-            sessionStorage.removeItem(SESSION_KEY)
+        if (msg.includes('401') || msg.toLowerCase().includes('unauthorized') || msg.toLowerCase().includes('not an admin')) {
+            await supabase.auth.signOut()
             window.location.reload()
         }
         throw new Error(msg)
@@ -134,46 +136,138 @@ function shortId(id: string) {
     return '#' + id.replace(/-/g, '').slice(0, 8).toUpperCase()
 }
 
-// ─── PIN Gate ─────────────────────────────────────────────────────────────────
+// ─── Admin Login ─────────────────────────────────────────────────────────────
 
-function PinGate({ onAuth }: { onAuth: () => void }) {
-    const [pin, setPin] = useState('')
+function AdminLogin({ onAuth }: { onAuth: (user: User) => void }) {
+    const [email, setEmail] = useState('')
+    const [password, setPassword] = useState('')
     const [error, setError] = useState('')
     const [loading, setLoading] = useState(false)
+    const [forgotMode, setForgotMode] = useState(false)
+    const [resetSent, setResetSent] = useState(false)
 
-    async function handleSubmit(e: React.FormEvent) {
+    async function handleLogin(e: React.FormEvent) {
         e.preventDefault()
         setError('')
         setLoading(true)
         try {
-            sessionStorage.setItem(SESSION_KEY, pin)
-            await adminCall('validate_pin')
-            onAuth()
-        } catch {
-            sessionStorage.removeItem(SESSION_KEY)
-            setError('Incorrect PIN. Please try again.')
+            const { data, error: authError } = await supabase.auth.signInWithPassword({ email, password })
+            if (authError) throw authError
+            if (!data.user) throw new Error('Login failed')
+            if (data.user.email !== ADMIN_EMAIL) {
+                await supabase.auth.signOut()
+                throw new Error('This account does not have admin access.')
+            }
+            onAuth(data.user)
+        } catch (err) {
+            setError((err as Error).message)
         } finally {
             setLoading(false)
         }
     }
 
+    async function handleForgotPassword(e: React.FormEvent) {
+        e.preventDefault()
+        setError('')
+        setLoading(true)
+        try {
+            const { error: resetError } = await supabase.auth.resetPasswordForEmail(email, {
+                redirectTo: window.location.origin + '/reset-password',
+            })
+            if (resetError) throw resetError
+            setResetSent(true)
+        } catch (err) {
+            setError((err as Error).message)
+        } finally {
+            setLoading(false)
+        }
+    }
+
+    if (forgotMode) {
+        return (
+            <div className="admin-pin">
+                <div className="admin-pin__card" style={{ width: 380 }}>
+                    <h1 className="admin-pin__title">Reset Password</h1>
+                    <p className="admin-pin__subtitle">The Colours of Nature</p>
+                    {resetSent ? (
+                        <div style={{ textAlign: 'center', padding: '1rem 0' }}>
+                            <CheckCircle size={32} strokeWidth={1} style={{ color: '#4a5e3a', marginBottom: '0.75rem' }} />
+                            <p style={{ fontSize: '0.9rem', marginBottom: '0.5rem' }}>Reset link sent to <strong>{email}</strong></p>
+                            <p style={{ fontSize: '0.82rem', color: '#8494a7' }}>Check your inbox and follow the link to set a new password.</p>
+                            <button className="admin-pin__btn" style={{ marginTop: '1rem' }} onClick={() => { setForgotMode(false); setResetSent(false) }}>
+                                Back to Login
+                            </button>
+                        </div>
+                    ) : (
+                        <form onSubmit={handleForgotPassword} className="admin-pin__form">
+                            <div style={{ position: 'relative' }}>
+                                <Mail size={15} style={{ position: 'absolute', left: 12, top: '50%', transform: 'translateY(-50%)', color: '#8494a7' }} />
+                                <input
+                                    type="email"
+                                    value={email}
+                                    onChange={e => setEmail(e.target.value)}
+                                    placeholder="Admin email"
+                                    className="admin-pin__input"
+                                    style={{ paddingLeft: 36 }}
+                                    autoFocus
+                                    required
+                                />
+                            </div>
+                            {error && <p className="admin-pin__error">{error}</p>}
+                            <button type="submit" className="admin-pin__btn" disabled={loading || !email}>
+                                {loading ? 'Sending…' : 'Send Reset Link'}
+                            </button>
+                            <button type="button" className="admin-pin__btn" style={{ background: 'transparent', color: '#4a5e3a', border: '1px solid #d4d8dc', marginTop: '0.5rem' }} onClick={() => { setForgotMode(false); setError('') }}>
+                                <ArrowLeft size={13} /> Back to Login
+                            </button>
+                        </form>
+                    )}
+                </div>
+            </div>
+        )
+    }
+
     return (
         <div className="admin-pin">
-            <div className="admin-pin__card" style={{ width: 340 }}>
+            <div className="admin-pin__card" style={{ width: 380 }}>
                 <h1 className="admin-pin__title">Admin Access</h1>
                 <p className="admin-pin__subtitle">The Colours of Nature</p>
-                <form onSubmit={handleSubmit} className="admin-pin__form">
-                    <input
-                        type="password"
-                        value={pin}
-                        onChange={e => setPin(e.target.value)}
-                        placeholder="Enter PIN"
-                        className="admin-pin__input"
-                        autoFocus
-                    />
+                <form onSubmit={handleLogin} className="admin-pin__form">
+                    <div style={{ position: 'relative' }}>
+                        <Mail size={15} style={{ position: 'absolute', left: 12, top: '50%', transform: 'translateY(-50%)', color: '#8494a7' }} />
+                        <input
+                            type="email"
+                            value={email}
+                            onChange={e => setEmail(e.target.value)}
+                            placeholder="Admin email"
+                            className="admin-pin__input"
+                            style={{ paddingLeft: 36 }}
+                            autoFocus
+                            required
+                        />
+                    </div>
+                    <div style={{ position: 'relative' }}>
+                        <Lock size={15} style={{ position: 'absolute', left: 12, top: '50%', transform: 'translateY(-50%)', color: '#8494a7' }} />
+                        <input
+                            type="password"
+                            value={password}
+                            onChange={e => setPassword(e.target.value)}
+                            placeholder="Password"
+                            className="admin-pin__input"
+                            style={{ paddingLeft: 36 }}
+                            required
+                        />
+                    </div>
                     {error && <p className="admin-pin__error">{error}</p>}
-                    <button type="submit" className="admin-pin__btn" disabled={loading || !pin}>
-                        {loading ? 'Verifying…' : 'Enter'}
+                    <button type="submit" className="admin-pin__btn" disabled={loading || !email || !password}>
+                        {loading ? 'Signing in…' : 'Sign In'}
+                    </button>
+                    <button
+                        type="button"
+                        onClick={() => { setForgotMode(true); setError('') }}
+                        style={{ background: 'none', border: 'none', color: '#8494a7', fontSize: '0.82rem', cursor: 'pointer', marginTop: '0.5rem', textDecoration: 'underline' }}
+                    >
+                        Forgot password?
                     </button>
                 </form>
             </div>
@@ -893,15 +987,27 @@ function AdminDashboard({ onLogout }: { onLogout: () => void }) {
 // ─── Root ─────────────────────────────────────────────────────────────────────
 
 export default function Admin() {
-    const [authenticated, setAuthenticated] = useState(() => !!sessionStorage.getItem(SESSION_KEY))
+    const [adminUser, setAdminUser] = useState<User | null>(null)
+    const [checking, setChecking] = useState(true)
 
-    function handleLogout() {
-        sessionStorage.removeItem(SESSION_KEY)
-        setAuthenticated(false)
+    useEffect(() => {
+        supabase.auth.getSession().then(({ data: { session } }) => {
+            if (session?.user?.email === ADMIN_EMAIL) {
+                setAdminUser(session.user)
+            }
+            setChecking(false)
+        })
+    }, [])
+
+    async function handleLogout() {
+        await supabase.auth.signOut()
+        setAdminUser(null)
     }
 
-    if (!authenticated) {
-        return <PinGate onAuth={() => setAuthenticated(true)} />
+    if (checking) return null
+
+    if (!adminUser) {
+        return <AdminLogin onAuth={(user) => setAdminUser(user)} />
     }
 
     return <AdminDashboard onLogout={handleLogout} />
