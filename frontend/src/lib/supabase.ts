@@ -7,12 +7,7 @@ if (!import.meta.env.VITE_SUPABASE_URL || !import.meta.env.VITE_SUPABASE_ANON_KE
     console.warn('⚠️  Missing VITE_SUPABASE_URL or VITE_SUPABASE_ANON_KEY — set these in Netlify Environment Variables. Supabase features will not work.')
 }
 
-export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
-    auth: {
-        flowType: 'implicit',
-        detectSessionInUrl: false,
-    },
-})
+export const supabase = createClient(supabaseUrl, supabaseAnonKey)
 
 // =============================================================================
 // TYPES

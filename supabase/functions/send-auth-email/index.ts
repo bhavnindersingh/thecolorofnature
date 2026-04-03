@@ -1,9 +1,6 @@
 // Auth hook: send_email
 // Intercepts all Supabase auth emails and sends them via Resend API.
-// Register this as the Send Email hook in:
-//   Supabase Dashboard → Authentication → Hooks → Send Email Hook
 
-import { serve } from "https://deno.land/std@0.177.0/http/server.ts";
 import {
   sendEmail,
   buildConfirmationEmail,
@@ -13,7 +10,8 @@ import {
   buildInviteEmail,
 } from "../_shared/email.ts";
 
-const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
+const PROJECT_URL = Deno.env.get("PROJECT_URL")!;
+const RESEND_API_KEY = Deno.env.get("RESEND_API_KEY")!;
 
 // Map Supabase action types to the verify endpoint's `type` param
 const VERIFY_TYPE: Record<string, string> = {
@@ -25,36 +23,28 @@ const VERIFY_TYPE: Record<string, string> = {
   email_change_current: "email_change",
 };
 
-serve(async (req) => {
-  let payload: {
-    user: { email: string; user_metadata?: Record<string, string> };
-    email_data: {
-      token: string;
-      token_hash: string;
-      redirect_to: string;
-      email_action_type: string;
-    };
-  };
+Deno.serve(async (req) => {
+  // Handle preflight
+  if (req.method === 'OPTIONS') {
+    return new Response('ok', { headers: { 'Access-Control-Allow-Origin': '*' } });
+  }
 
+  let payload;
   try {
     payload = await req.json();
-  } catch {
-    return new Response("Bad Request", { status: 400 });
+    console.log("[send-auth-email] Received payload type:", payload?.email_data?.email_action_type);
+  } catch (err) {
+    console.error("[send-auth-email] Failed to parse payload:", err);
+    return new Response(JSON.stringify({ error: "Invalid JSON" }), { status: 400 });
   }
 
   const { user, email_data } = payload;
   const { token_hash, redirect_to, email_action_type } = email_data;
 
-  // Build the verification link — always use the Supabase project URL, not
-  // email_data.site_url which is the frontend URL, not the auth server URL.
   const type = VERIFY_TYPE[email_action_type] ?? email_action_type;
-  const verifyUrl =
-    `${SUPABASE_URL}/auth/v1/verify?token=${token_hash}&type=${type}&redirect_to=${encodeURIComponent(redirect_to)}`;
+  const verifyUrl = `${PROJECT_URL}/auth/v1/verify?token=${token_hash}&type=${type}&redirect_to=${encodeURIComponent(redirect_to)}`;
 
-  const name =
-    user.user_metadata?.full_name ??
-    user.user_metadata?.first_name ??
-    "there";
+  const name = user.user_metadata?.full_name ?? user.user_metadata?.first_name ?? "there";
 
   let subject: string;
   let html: string;
@@ -81,17 +71,20 @@ serve(async (req) => {
   }
 
   try {
+    console.log(`[send-auth-email] Attempting to send ${email_action_type} to ${user.email}`);
     await sendEmail(user.email, subject, html);
+    console.log(`[send-auth-email] Success!`);
+    return new Response(JSON.stringify({ status: "success" }), {
+      headers: { "Content-Type": "application/json" },
+    });
   } catch (err) {
-    console.error("Failed to send auth email:", err);
-    // Return 500 so Supabase knows delivery failed
-    return new Response(JSON.stringify({ error: String(err) }), {
+    console.error(`[send-auth-email] Error:`, err);
+    return new Response(JSON.stringify({ 
+      error: String(err),
+      details: "Check RESEND_API_KEY and PROJECT_URL secrets."
+    }), {
       status: 500,
       headers: { "Content-Type": "application/json" },
     });
   }
-
-  return new Response(JSON.stringify({}), {
-    headers: { "Content-Type": "application/json" },
-  });
 });
