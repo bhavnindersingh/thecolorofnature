@@ -1,6 +1,6 @@
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect, useRef, useMemo } from 'react'
 import { Link } from 'react-router-dom'
-import { supabase } from '../lib/supabase'
+import { createClient } from '@supabase/supabase-js'
 
 function mapAuthError(msg: string): string {
     if (msg.includes('Password should be at least')) return 'Password must be at least 6 characters.'
@@ -15,50 +15,83 @@ export default function ResetPassword() {
     const [linkError, setLinkError] = useState(false)
     const [message, setMessage] = useState<{ text: string; type: 'success' | 'error' } | null>(null)
 
-    // Tokens captured from URL so we can re-establish the session right before
-    // updateUser (Supabase clears the recovery session via auto-refresh).
-    const accessTokenRef = useRef<string | null>(null)
-    const refreshTokenRef = useRef<string | null>(null)
-
     // Guard against React StrictMode running the effect twice.
     const initialized = useRef(false)
+
+    // Dedicated Supabase client with autoRefreshToken: false.
+    //
+    // Root cause of the original bug: after PASSWORD_RECOVERY fires, the SDK's
+    // background auto-refresh timer calls POST /auth/v1/token?grant_type=refresh_token.
+    // Supabase rejects this (recovery tokens can't be standard-refreshed), marks the
+    // session as revoked server-side, and fires SIGNED_OUT. Any subsequent API call
+    // with the access_token then returns 403.
+    //
+    // Fix: use a client that never starts the auto-refresh timer. The main supabase
+    // client has detectSessionInUrl: false so it won't compete on this page.
+    const recoveryClient = useMemo(() => createClient(
+        import.meta.env.VITE_SUPABASE_URL ?? '',
+        import.meta.env.VITE_SUPABASE_ANON_KEY ?? '',
+        {
+            auth: {
+                autoRefreshToken: false,
+                persistSession: false,
+                detectSessionInUrl: false,
+                // Different storageKey isolates this client from the main supabase
+                // client — they won't share BroadcastChannel events, so recovery
+                // session changes can't sign out the admin session.
+                storageKey: 'sb-recovery-isolated',
+            },
+        }
+    ), [])
 
     useEffect(() => {
         if (initialized.current) return
         initialized.current = true
 
-        // Check both hash (Implicit) and searchParams (PKCE)
+        // Support both implicit flow (#access_token=...) and PKCE flow (?code=...)
         const hash = new URLSearchParams(window.location.hash.slice(1))
         const query = new URLSearchParams(window.location.search)
-        
+
         const accessToken = hash.get('access_token') || query.get('access_token')
         const refreshToken = hash.get('refresh_token') || query.get('refresh_token')
         const type = hash.get('type') || query.get('type')
+        const code = query.get('code')
 
-        console.log('[ResetPassword] Attempting session recovery with type:', type)
+        console.log('[ResetPassword] Recovery params — type:', type, 'hasToken:', !!accessToken, 'hasCode:', !!code)
 
-        if (!accessToken || type !== 'recovery') {
-            console.warn('[ResetPassword] Invalid reset link parameters')
+        if (code) {
+            // PKCE flow: exchange the code for a session using the no-refresh client
+            recoveryClient.auth
+                .exchangeCodeForSession(code)
+                .then(({ data, error }) => {
+                    if (error || !data.session) {
+                        console.error('[ResetPassword] exchangeCodeForSession error:', error)
+                        setLinkError(true)
+                    } else {
+                        console.log('[ResetPassword] Session ready (PKCE) for:', data.session.user.email)
+                        setSessionReady(true)
+                        window.history.replaceState({}, '', window.location.pathname)
+                    }
+                })
+        } else if (accessToken && type === 'recovery') {
+            // Implicit flow: set the session directly — no auto-refresh means no SIGNED_OUT
+            recoveryClient.auth
+                .setSession({ access_token: accessToken, refresh_token: refreshToken ?? '' })
+                .then(({ data, error }) => {
+                    if (error || !data.session) {
+                        console.error('[ResetPassword] setSession error:', error)
+                        setLinkError(true)
+                    } else {
+                        console.log('[ResetPassword] Session ready (implicit) for:', data.session.user.email)
+                        setSessionReady(true)
+                        window.history.replaceState({}, '', window.location.pathname)
+                    }
+                })
+        } else {
+            console.warn('[ResetPassword] No recovery token or code found in URL')
             setLinkError(true)
-            return
         }
-
-        accessTokenRef.current = accessToken
-        refreshTokenRef.current = refreshToken
-
-        supabase.auth
-            .setSession({ access_token: accessToken, refresh_token: refreshToken ?? '' })
-            .then(({ data, error }) => {
-                if (error) {
-                    console.error('[ResetPassword] setSession error:', error)
-                    setLinkError(true)
-                } else if (data?.session) {
-                    console.log('[ResetPassword] Session recovery successful for:', data.session.user.email)
-                    setSessionReady(true)
-                    window.history.replaceState({}, '', window.location.pathname)
-                }
-            })
-    }, [])
+    }, [recoveryClient])
 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault()
@@ -73,19 +106,11 @@ export default function ResetPassword() {
         setLoading(true)
         setMessage(null)
         try {
-            // Re-establish the session — Supabase's auto-refresh can clear the
-            // recovery session between mount and submit.
-            if (accessTokenRef.current) {
-                const { error: sessErr } = await supabase.auth.setSession({
-                    access_token: accessTokenRef.current,
-                    refresh_token: refreshTokenRef.current ?? '',
-                })
-                if (sessErr) throw sessErr
-            }
-            const { error } = await supabase.auth.updateUser({ password })
+            // Session is still alive in recoveryClient — no SIGNED_OUT ever fires
+            // because autoRefreshToken is false on this client.
+            const { error } = await recoveryClient.auth.updateUser({ password })
             if (error) throw error
             setMessage({ text: 'Password updated! You can now log in.', type: 'success' })
-            await supabase.auth.signOut()
         } catch (err) {
             setMessage({ text: mapAuthError((err as Error).message), type: 'error' })
         } finally {

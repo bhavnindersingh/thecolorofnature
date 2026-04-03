@@ -7,7 +7,12 @@ if (!import.meta.env.VITE_SUPABASE_URL || !import.meta.env.VITE_SUPABASE_ANON_KE
     console.warn('⚠️  Missing VITE_SUPABASE_URL or VITE_SUPABASE_ANON_KEY — set these in Netlify Environment Variables. Supabase features will not work.')
 }
 
-export const supabase = createClient(supabaseUrl, supabaseAnonKey)
+// detectSessionInUrl: false — the /reset-password page uses its own dedicated
+// recovery client (autoRefreshToken: false) so the main client must not compete
+// by also processing the recovery URL hash/code.
+export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
+    auth: { detectSessionInUrl: false },
+})
 
 // =============================================================================
 // TYPES
