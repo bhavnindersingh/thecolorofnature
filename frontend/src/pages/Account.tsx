@@ -794,6 +794,7 @@ export default function Account() {
         e.preventDefault()
         setLoading(true)
         setMessage(null)
+        console.log(`[Account] ${mode === 'signup' ? 'Signing up' : 'Signing in'} for: ${email}`)
         try {
             if (mode === 'signup') {
                 const { error } = await supabase.auth.signUp({
@@ -803,11 +804,19 @@ export default function Account() {
                         emailRedirectTo: window.location.origin + '/account',
                     },
                 })
-                if (error) throw error
+                if (error) {
+                    console.error('[Account] Signup error:', error)
+                    throw error
+                }
+                console.log('[Account] Signup initiation successful')
                 setSignupEmail(email)
             } else {
                 const { error } = await supabase.auth.signInWithPassword({ email, password })
-                if (error) throw error
+                if (error) {
+                    console.error('[Account] Signin error:', error)
+                    throw error
+                }
+                console.log('[Account] Signin successful')
                 // onAuthStateChange will update user automatically
             }
         } catch (err) {
@@ -825,11 +834,16 @@ export default function Account() {
     const handleForgotSubmit = async (e: React.FormEvent) => {
         e.preventDefault()
         setLoading(true)
+        console.log('[Account] Requesting password reset for:', resetEmail)
         try {
             const { error } = await supabase.auth.resetPasswordForEmail(resetEmail, {
                 redirectTo: window.location.origin + '/reset-password',
             })
-            if (error) throw error
+            if (error) {
+                console.error('[Account] Password reset error:', error)
+                throw error
+            }
+            console.log('[Account] Password reset initiation successful')
             setResetSent(true)
         } catch (err) {
             setMessage({ text: mapAuthError((err as Error).message), type: 'error' })

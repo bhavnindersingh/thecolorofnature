@@ -27,12 +27,18 @@ export default function ResetPassword() {
         if (initialized.current) return
         initialized.current = true
 
+        // Check both hash (Implicit) and searchParams (PKCE)
         const hash = new URLSearchParams(window.location.hash.slice(1))
-        const accessToken = hash.get('access_token')
-        const refreshToken = hash.get('refresh_token')
-        const type = hash.get('type')
+        const query = new URLSearchParams(window.location.search)
+        
+        const accessToken = hash.get('access_token') || query.get('access_token')
+        const refreshToken = hash.get('refresh_token') || query.get('refresh_token')
+        const type = hash.get('type') || query.get('type')
+
+        console.log('[ResetPassword] Attempting session recovery with type:', type)
 
         if (!accessToken || type !== 'recovery') {
+            console.warn('[ResetPassword] Invalid reset link parameters')
             setLinkError(true)
             return
         }
@@ -43,11 +49,13 @@ export default function ResetPassword() {
         supabase.auth
             .setSession({ access_token: accessToken, refresh_token: refreshToken ?? '' })
             .then(({ data, error }) => {
-                if (data?.session && !error) {
+                if (error) {
+                    console.error('[ResetPassword] setSession error:', error)
+                    setLinkError(true)
+                } else if (data?.session) {
+                    console.log('[ResetPassword] Session recovery successful for:', data.session.user.email)
                     setSessionReady(true)
                     window.history.replaceState({}, '', window.location.pathname)
-                } else {
-                    setLinkError(true)
                 }
             })
     }, [])

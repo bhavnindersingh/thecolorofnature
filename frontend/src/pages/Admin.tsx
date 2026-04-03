@@ -150,14 +150,20 @@ function AdminLogin({ onAuth }: { onAuth: (user: User) => void }) {
         e.preventDefault()
         setError('')
         setLoading(true)
+        console.log('[Admin] Attempting login for:', email)
         try {
             const { data, error: authError } = await supabase.auth.signInWithPassword({ email, password })
-            if (authError) throw authError
+            if (authError) {
+                console.error('[Admin] Sign in error:', authError)
+                throw authError
+            }
             if (!data.user) throw new Error('Login failed')
             if (data.user.email !== ADMIN_EMAIL) {
+                console.warn('[Admin] Unauthorized access attempt by:', data.user.email)
                 await supabase.auth.signOut()
                 throw new Error('This account does not have admin access.')
             }
+            console.log('[Admin] Login successful for:', data.user.email)
             onAuth(data.user)
         } catch (err) {
             setError((err as Error).message)
@@ -170,11 +176,16 @@ function AdminLogin({ onAuth }: { onAuth: (user: User) => void }) {
         e.preventDefault()
         setError('')
         setLoading(true)
+        console.log('[Admin] Requesting password reset for:', email)
         try {
             const { error: resetError } = await supabase.auth.resetPasswordForEmail(email, {
                 redirectTo: window.location.origin + '/reset-password',
             })
-            if (resetError) throw resetError
+            if (resetError) {
+                console.error('[Admin] Password reset error:', resetError)
+                throw resetError
+            }
+            console.log('[Admin] Password reset link sent successfully')
             setResetSent(true)
         } catch (err) {
             setError((err as Error).message)

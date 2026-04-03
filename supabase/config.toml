@@ -432,3 +432,9 @@ enabled = true
 verify_jwt = false
 entrypoint = "./functions/sync-products/index.ts"
 import_map = "./functions/sync-products/deno.json"
+
+#When verify_jwt is true (the default), Supabase blocks any request to your function that doesn't have a valid User Login Token
+[functions.send-auth-email]
+enabled = true
+verify_jwt = false
+entrypoint = "./functions/send-auth-email/index.ts"
