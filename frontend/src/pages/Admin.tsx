@@ -991,24 +991,18 @@ export default function Admin() {
     const [checking, setChecking] = useState(true)
 
     useEffect(() => {
-        supabase.auth.getSession().then(({ data: { session } }) => {
-            if (session?.user?.email === ADMIN_EMAIL) {
-                setAdminUser(session.user)
-            }
+        const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+            setAdminUser(session?.user?.email === ADMIN_EMAIL ? session.user : null)
             setChecking(false)
         })
+        return () => subscription.unsubscribe()
     }, [])
 
     async function handleLogout() {
         await supabase.auth.signOut()
-        setAdminUser(null)
     }
 
     if (checking) return null
-
-    if (!adminUser) {
-        return <AdminLogin onAuth={(user) => setAdminUser(user)} />
-    }
-
+    if (!adminUser) return <AdminLogin onAuth={(user) => setAdminUser(user)} />
     return <AdminDashboard onLogout={handleLogout} />
 }

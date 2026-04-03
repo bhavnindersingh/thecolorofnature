@@ -2,7 +2,8 @@
    Admin Dashboard
    ═══════════════════════════════════════════════════════════════════════════ */
 
-.admin {
+.admin,
+.admin-pin {
   --admin-navy: #18336B;
   --admin-navy-dark: #0f2349;
   --admin-blue: #2c5aa0;
@@ -15,7 +16,9 @@
   --admin-success: #2a7a2a;
   --admin-danger: #c53030;
   --admin-warning: #d69e2e;
+}
 
+.admin {
   min-height: 100vh;
   background: var(--admin-blue-muted);
   font-family: var(--font-sans);

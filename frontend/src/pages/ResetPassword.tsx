@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { Link } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
 
@@ -11,7 +11,46 @@ export default function ResetPassword() {
     const [password, setPassword] = useState('')
     const [confirm, setConfirm] = useState('')
     const [loading, setLoading] = useState(false)
+    const [sessionReady, setSessionReady] = useState(false)
+    const [linkError, setLinkError] = useState(false)
     const [message, setMessage] = useState<{ text: string; type: 'success' | 'error' } | null>(null)
+
+    // Tokens captured from URL so we can re-establish the session right before
+    // updateUser (Supabase clears the recovery session via auto-refresh).
+    const accessTokenRef = useRef<string | null>(null)
+    const refreshTokenRef = useRef<string | null>(null)
+
+    // Guard against React StrictMode running the effect twice.
+    const initialized = useRef(false)
+
+    useEffect(() => {
+        if (initialized.current) return
+        initialized.current = true
+
+        const hash = new URLSearchParams(window.location.hash.slice(1))
+        const accessToken = hash.get('access_token')
+        const refreshToken = hash.get('refresh_token')
+        const type = hash.get('type')
+
+        if (!accessToken || type !== 'recovery') {
+            setLinkError(true)
+            return
+        }
+
+        accessTokenRef.current = accessToken
+        refreshTokenRef.current = refreshToken
+
+        supabase.auth
+            .setSession({ access_token: accessToken, refresh_token: refreshToken ?? '' })
+            .then(({ data, error }) => {
+                if (data?.session && !error) {
+                    setSessionReady(true)
+                    window.history.replaceState({}, '', window.location.pathname)
+                } else {
+                    setLinkError(true)
+                }
+            })
+    }, [])
 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault()
@@ -26,14 +65,46 @@ export default function ResetPassword() {
         setLoading(true)
         setMessage(null)
         try {
+            // Re-establish the session — Supabase's auto-refresh can clear the
+            // recovery session between mount and submit.
+            if (accessTokenRef.current) {
+                const { error: sessErr } = await supabase.auth.setSession({
+                    access_token: accessTokenRef.current,
+                    refresh_token: refreshTokenRef.current ?? '',
+                })
+                if (sessErr) throw sessErr
+            }
             const { error } = await supabase.auth.updateUser({ password })
             if (error) throw error
-            setMessage({ text: 'Password updated!', type: 'success' })
+            setMessage({ text: 'Password updated! You can now log in.', type: 'success' })
+            await supabase.auth.signOut()
         } catch (err) {
             setMessage({ text: mapAuthError((err as Error).message), type: 'error' })
         } finally {
             setLoading(false)
         }
+    }
+
+    if (!sessionReady) {
+        return (
+            <div className="auth-page">
+                <div className="auth-card">
+                    <div className="auth-logo">Color of Nature</div>
+                    {linkError ? (
+                        <div style={{ textAlign: 'center' }}>
+                            <p style={{ color: '#c53030', fontSize: '0.9rem', marginBottom: '1rem' }}>
+                                This reset link has expired or already been used.
+                            </p>
+                            <Link to="/admin" className="btn btn-primary" style={{ display: 'inline-flex' }}>
+                                Request a new link
+                            </Link>
+                        </div>
+                    ) : (
+                        <p style={{ textAlign: 'center', color: '#8494a7', marginTop: '1rem' }}>Verifying reset link…</p>
+                    )}
+                </div>
+            </div>
+        )
     }
 
     return (
@@ -49,8 +120,8 @@ export default function ResetPassword() {
                         <div className="form-message success" style={{ marginBottom: '1.5rem' }}>
                             {message.text}
                         </div>
-                        <Link to="/account" className="btn btn-primary" style={{ display: 'inline-flex' }}>
-                            Go to Account
+                        <Link to="/admin" className="btn btn-primary" style={{ display: 'inline-flex' }}>
+                            Go to Admin Login
                         </Link>
                     </div>
                 ) : (
