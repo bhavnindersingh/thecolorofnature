@@ -10,10 +10,6 @@ function requireEnv(name: string): string {
     return val;
 }
 
-const ADMIN_EMAIL = requireEnv("ADMIN_EMAIL");
-const SUPABASE_URL = requireEnv("SUPABASE_URL");
-const SUPABASE_SERVICE_ROLE_KEY = requireEnv("SUPABASE_SERVICE_ROLE_KEY");
-const SUPABASE_ANON_KEY = requireEnv("SUPABASE_ANON_KEY");
 
 // ─── CORS ─────────────────────────────────────────────────────────────────────
 
@@ -32,11 +28,14 @@ function json(data: unknown, status = 200) {
 // ─── Internal function caller ─────────────────────────────────────────────────
 
 async function callFunction(name: string, body: unknown): Promise<unknown> {
-    const resp = await fetch(`${SUPABASE_URL}/functions/v1/${name}`, {
+    const url = Deno.env.get("SUPABASE_URL")!;
+    const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
+    const anonKey = Deno.env.get("SUPABASE_ANON_KEY")!;
+    const resp = await fetch(`${url}/functions/v1/${name}`, {
         method: "POST",
         headers: {
-            "Authorization": `Bearer ${SUPABASE_SERVICE_ROLE_KEY}`,
-            "apikey": SUPABASE_ANON_KEY,
+            "Authorization": `Bearer ${serviceKey}`,
+            "apikey": anonKey,
             "Content-Type": "application/json",
         },
         body: JSON.stringify(body),
@@ -624,7 +623,11 @@ serve(async (req) => {
         return new Response("ok", { headers: corsHeaders });
     }
 
-    // ── JWT + admin email validation ──
+    const SUPABASE_URL = requireEnv("SUPABASE_URL");
+    const SUPABASE_SERVICE_ROLE_KEY = requireEnv("SUPABASE_SERVICE_ROLE_KEY");
+    const SUPABASE_ANON_KEY = requireEnv("SUPABASE_ANON_KEY");
+
+    // ── JWT validation ──
     const authToken = req.headers.get("Authorization")?.replace("Bearer ", "").trim();
     if (!authToken) return json({ error: "Missing authorization" }, 401);
 
@@ -633,7 +636,6 @@ serve(async (req) => {
     });
     const { data: { user: authUser }, error: authErr } = await userClient.auth.getUser(authToken);
     if (authErr || !authUser) return json({ error: "Unauthorized" }, 401);
-    if (authUser.email !== ADMIN_EMAIL) return json({ error: "Not an admin" }, 403);
 
     try {
         const { action, payload = {} } = await req.json();

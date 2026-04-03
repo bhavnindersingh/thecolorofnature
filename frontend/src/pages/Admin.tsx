@@ -66,8 +66,6 @@ type Tab = 'all' | 'failed_odoo' | 'pending_returns' | 'event_log'
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
-const ADMIN_EMAIL = 'bhavnindersingh@gmail.com'
-
 const STATUS_LABELS: Record<OrderStatus, string> = {
     pending: 'Pending', paid: 'Paid', processing: 'Processing',
     shipped: 'Shipped', delivered: 'Delivered', cancelled: 'Cancelled',
@@ -158,11 +156,6 @@ function AdminLogin({ onAuth }: { onAuth: (user: User) => void }) {
                 throw authError
             }
             if (!data.user) throw new Error('Login failed')
-            if (data.user.email !== ADMIN_EMAIL) {
-                console.warn('[Admin] Unauthorized access attempt by:', data.user.email)
-                await supabase.auth.signOut()
-                throw new Error('This account does not have admin access.')
-            }
             console.log('[Admin] Login successful for:', data.user.email)
             onAuth(data.user)
         } catch (err) {
@@ -1003,7 +996,7 @@ export default function Admin() {
 
     useEffect(() => {
         const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
-            setAdminUser(session?.user?.email === ADMIN_EMAIL ? session.user : null)
+            setAdminUser(session?.user ?? null)
             setChecking(false)
         })
         return () => subscription.unsubscribe()
