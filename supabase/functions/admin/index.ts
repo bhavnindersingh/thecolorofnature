@@ -631,7 +631,7 @@ serve(async (req) => {
     const userClient = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
         global: { headers: { Authorization: `Bearer ${authToken}` } },
     });
-    const { data: { user: authUser }, error: authErr } = await userClient.auth.getUser();
+    const { data: { user: authUser }, error: authErr } = await userClient.auth.getUser(authToken);
     if (authErr || !authUser) return json({ error: "Unauthorized" }, 401);
     if (authUser.email !== ADMIN_EMAIL) return json({ error: "Not an admin" }, 403);
 
