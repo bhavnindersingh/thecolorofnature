@@ -1,1 +1,2 @@
-
+-- This migration was applied to remote as empty.
+-- Cron schedule is set up in 20260404000001_add_cron_schedule.sql

@@ -2,16 +2,16 @@ import { useState, useEffect } from 'react'
 import { useNavigate, Link } from 'react-router-dom'
 import { useQuery, useMutation } from '@tanstack/react-query'
 import { MapPin, CheckCircle, AlertCircle, ChevronDown, Package, CreditCard, Lock, ArrowLeft } from 'lucide-react'
-import { getMyAddresses, createOrder, confirmOrderPayment, addAddress, supabase } from '../lib/supabase'
+import { getMyAddresses, createOrder, confirmOrderPayment, addAddress, getServerCart, clearServerCart, supabase } from '../lib/supabase'
 import PlacesAutocomplete from '../components/PlacesAutocomplete'
-import type { Address, Product, ProductVariant } from '../lib/supabase'
+import type { Address, Product, ProductVariant, ServerCartItem } from '../lib/supabase'
 import { useAuth } from '../contexts/AuthContext'
 
 interface CartItem extends Product {
     qty: number
 }
 
-function loadCart(): CartItem[] {
+function loadLocalCart(): CartItem[] {
     const raw: Product[] = JSON.parse(localStorage.getItem('cart') || '[]')
     const map = new Map<number, CartItem>()
     raw.forEach((p) => {
@@ -19,6 +19,13 @@ function loadCart(): CartItem[] {
         else map.set(p.id, { ...p, qty: 1 })
     })
     return Array.from(map.values())
+}
+
+function serverCartToItems(serverItems: ServerCartItem[]): CartItem[] {
+    return serverItems.map((item) => ({
+        ...item.product,
+        qty: item.quantity,
+    }))
 }
 
 type Step = 'address' | 'payment' | 'success'
@@ -178,7 +185,20 @@ function AddressPicker({
 // ─── Main Checkout Page ───────────────────────────────────────────────────────
 export default function Checkout() {
     const navigate = useNavigate()
-    const [items] = useState<CartItem[]>(loadCart)
+    const { user, loading: authLoading } = useAuth()
+
+    // Load server cart for logged-in users, fall back to localStorage for anonymous
+    const { data: serverCartData } = useQuery({
+        queryKey: ['cart'],
+        queryFn: getServerCart,
+        enabled: !!user && !authLoading,
+        staleTime: 60 * 1000,
+    })
+
+    const [localItems] = useState<CartItem[]>(loadLocalCart)
+    const items: CartItem[] = user
+        ? (serverCartData ? serverCartToItems(serverCartData) : [])
+        : localItems
     const [selectedAddr, setSelectedAddr] = useState<Address | Record<string, string> | null>(null)
     const [selectedAddrId, setSelectedAddrId] = useState<string | undefined>(undefined)
     const [shouldSaveAddr, setShouldSaveAddr] = useState(false)
@@ -190,9 +210,6 @@ export default function Checkout() {
     const subtotal = items.reduce((s, i) => s + i.price * i.qty, 0)
     const shipping = subtotal > 999 ? 0 : 99
     const total = subtotal + shipping
-
-    // Auth check
-    const { user, loading: authLoading } = useAuth()
 
     // Redirect if not logged in or cart empty
     useEffect(() => {
@@ -293,7 +310,11 @@ export default function Checkout() {
             return data
         },
         onSuccess: () => {
-            localStorage.setItem('cart', '[]')
+            if (user) {
+                clearServerCart().catch(console.error)
+            } else {
+                localStorage.setItem('cart', '[]')
+            }
             window.dispatchEvent(new Event('cart-updated'))
             setPlacedOrderId(pendingOrderId)
             setStep('success')

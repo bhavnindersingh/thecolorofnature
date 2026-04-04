@@ -170,6 +170,16 @@ export interface ReturnRequest {
     order?: Order
 }
 
+export interface ServerCartItem {
+    id: string
+    product_id: number
+    variant_id: number | null
+    quantity: number
+    // Joined
+    product: Product
+    variant: ProductVariant | null
+}
+
 // =============================================================================
 // PRODUCTS
 // =============================================================================
@@ -465,4 +475,74 @@ export const markReturnShipped = async (returnId: string) => {
         .eq('id', returnId)
         .eq('user_id', user.id)
         .eq('status', 'approved')
+}
+
+// =============================================================================
+// SERVER-SIDE CART (logged-in users only)
+// =============================================================================
+
+/** Fetch the current user's server cart with joined product + variant data */
+export const getServerCart = async (): Promise<ServerCartItem[]> => {
+    const { data, error } = await supabase
+        .from('cart_items')
+        .select('id, product_id, variant_id, quantity, product:products(*, product_images(*), product_variants(*)), variant:product_variants(*)')
+        .order('created_at', { ascending: true })
+    if (error) throw error
+    return (data ?? []) as unknown as ServerCartItem[]
+}
+
+/** Add or update a cart item. Uses upsert so calling again with a new qty replaces it. */
+export const upsertServerCartItem = async (productId: number, variantId: number | null, quantity: number) => {
+    const { data: { user } } = await supabase.auth.getUser()
+    if (!user) throw new Error('Not authenticated')
+    const { error } = await supabase
+        .from('cart_items')
+        .upsert(
+            { user_id: user.id, product_id: productId, variant_id: variantId, quantity },
+            { onConflict: 'user_id,product_id,variant_id' }
+        )
+    if (error) throw error
+}
+
+/** Remove a single item from the server cart */
+export const removeFromServerCart = async (productId: number, variantId: number | null) => {
+    const { data: { user } } = await supabase.auth.getUser()
+    if (!user) throw new Error('Not authenticated')
+    const query = supabase
+        .from('cart_items')
+        .delete()
+        .eq('user_id', user.id)
+        .eq('product_id', productId)
+    const { error } = await (variantId != null ? query.eq('variant_id', variantId) : query.is('variant_id', null))
+    if (error) throw error
+}
+
+/** Clear the entire server cart (called after order is confirmed) */
+export const clearServerCart = async () => {
+    const { data: { user } } = await supabase.auth.getUser()
+    if (!user) throw new Error('Not authenticated')
+    const { error } = await supabase.from('cart_items').delete().eq('user_id', user.id)
+    if (error) throw error
+}
+
+/** Merge localStorage cart items into the server cart (called once on login).
+ *  Each item in localItems is expected to be a Product (repeated per qty unit). */
+export const mergeLocalCartToServer = async (localProducts: Product[]) => {
+    const { data: { user } } = await supabase.auth.getUser()
+    if (!user) throw new Error('Not authenticated')
+
+    // Deduplicate: count qty per product_id
+    const qtyMap = new Map<number, number>()
+    for (const p of localProducts) {
+        qtyMap.set(p.id, (qtyMap.get(p.id) ?? 0) + 1)
+    }
+
+    // Upsert each unique product — variant_id is null since localStorage cart doesn't track variants
+    const upserts = Array.from(qtyMap.entries()).map(([product_id, quantity]) =>
+        supabase.from('cart_items').upsert(
+            { user_id: user.id, product_id, variant_id: null, quantity },
+            { onConflict: 'user_id,product_id,variant_id' }
+        )
+    )
+    await Promise.all(upserts)
 }

@@ -1,6 +1,7 @@
 import { createContext, useContext, useEffect, useState } from 'react'
 import type { User } from '@supabase/supabase-js'
-import { supabase } from '../lib/supabase'
+import { supabase, mergeLocalCartToServer } from '../lib/supabase'
+import type { Product } from '../lib/supabase'
 
 interface AuthContextValue {
     user: User | null
@@ -18,6 +19,26 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             console.log('[Auth] State change event:', event, ' User:', session?.user?.email ?? 'none')
             setUser(session?.user ?? null)
             setLoading(false)
+
+            // On login: merge any anonymous localStorage cart into the server cart
+            if (event === 'SIGNED_IN') {
+                try {
+                    const raw = localStorage.getItem('cart')
+                    if (raw) {
+                        const localProducts: Product[] = JSON.parse(raw)
+                        if (localProducts.length > 0) {
+                            mergeLocalCartToServer(localProducts)
+                                .then(() => {
+                                    localStorage.removeItem('cart')
+                                    window.dispatchEvent(new Event('cart-updated'))
+                                })
+                                .catch(console.error)
+                        }
+                    }
+                } catch {
+                    // Non-critical — localStorage parse failure, skip merge
+                }
+            }
         })
         return () => subscription.unsubscribe()
     }, [])

@@ -1,8 +1,11 @@
 import { Link, useLocation } from 'react-router-dom'
 import { ShoppingBag, User } from 'lucide-react'
 import { useEffect, useState, useCallback } from 'react'
+import { useQuery, useQueryClient } from '@tanstack/react-query'
+import { useAuth } from '../contexts/AuthContext'
+import { getServerCart } from '../lib/supabase'
 
-function getCartCount(): number {
+function getLocalCartCount(): number {
     try {
         return JSON.parse(localStorage.getItem('cart') || '[]').length
     } catch {
@@ -12,23 +15,47 @@ function getCartCount(): number {
 
 export default function Navbar() {
     const { pathname } = useLocation()
+    const { user } = useAuth()
+    const queryClient = useQueryClient()
     const [scrolled, setScrolled] = useState(false)
-    const [cartCount, setCartCount] = useState(getCartCount)
 
-    // Recount whenever cart changes
-    const refreshCount = useCallback(() => setCartCount(getCartCount()), [])
+    // Server cart count (logged-in users)
+    const { data: serverCart } = useQuery({
+        queryKey: ['cart'],
+        queryFn: getServerCart,
+        enabled: !!user,
+        staleTime: 60 * 1000,
+    })
+
+    // Local cart count (anonymous users)
+    const [localCount, setLocalCount] = useState(getLocalCartCount)
+    const refreshLocalCount = useCallback(() => setLocalCount(getLocalCartCount()), [])
 
     useEffect(() => {
         const onScroll = () => setScrolled(window.scrollY > 20)
         window.addEventListener('scroll', onScroll, { passive: true })
-        window.addEventListener('cart-updated', refreshCount)
-        window.addEventListener('storage', refreshCount)
+
+        // On cart-updated: refresh local count (anonymous) or invalidate server query (logged-in)
+        const onCartUpdated = () => {
+            if (user) {
+                queryClient.invalidateQueries({ queryKey: ['cart'] })
+            } else {
+                refreshLocalCount()
+            }
+        }
+        window.addEventListener('cart-updated', onCartUpdated)
+        window.addEventListener('storage', refreshLocalCount)
+
         return () => {
             window.removeEventListener('scroll', onScroll)
-            window.removeEventListener('cart-updated', refreshCount)
-            window.removeEventListener('storage', refreshCount)
+            window.removeEventListener('cart-updated', onCartUpdated)
+            window.removeEventListener('storage', refreshLocalCount)
         }
-    }, [refreshCount])
+    }, [user, queryClient, refreshLocalCount])
+
+    const cartCount = user
+        ? (serverCart?.reduce((sum, item) => sum + item.quantity, 0) ?? 0)
+        : localCount
 
     return (
         <nav className={`navbar${scrolled ? ' scrolled' : ''}`}>
