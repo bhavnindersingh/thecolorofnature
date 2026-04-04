@@ -265,6 +265,7 @@ export default function Checkout() {
 
             const orderItems = items.map((i) => ({
                 product_id: i.id,
+                variant_id: i.product_variants?.[0]?.id ?? null,
                 quantity: i.qty,
                 unit_price: i.price,
             }))

@@ -222,7 +222,8 @@ async function pushToOdoo(supabase: ReturnType<typeof createClient>, order_id: s
         .select(`
             id, user_id, odoo_order_id,
             order_items (
-                quantity, unit_price,
+                quantity, unit_price, variant_id,
+                product_variant:product_variants ( id, odoo_variant_id ),
                 product:products (
                     name,
                     product_variants ( odoo_variant_id )
@@ -233,6 +234,10 @@ async function pushToOdoo(supabase: ReturnType<typeof createClient>, order_id: s
         .single();
     if (orderErr || !order) throw new Error(orderErr?.message ?? "Order not found");
     if (order.odoo_order_id) return { success: true, message: "Already synced", odoo_order_id: order.odoo_order_id };
+
+    if (!order.order_items || (order.order_items as unknown[]).length === 0) {
+        throw new Error("Cannot sync: order has no items");
+    }
 
     const { data: { user }, error: userErr } = await supabase.auth.admin.getUserById(order.user_id);
     if (userErr || !user) throw new Error("Could not fetch customer user");
@@ -246,18 +251,26 @@ async function pushToOdoo(supabase: ReturnType<typeof createClient>, order_id: s
         profile?.full_name ??
         ([profile?.first_name, profile?.last_name].filter(Boolean).join(" ") || user.email);
 
+    // Use specific variant when variant_id is set (new orders).
+    // Fall back to product_variants[0] for old orders without variant_id.
     type OrderItem = {
         quantity: number;
         unit_price: number;
+        variant_id: number | null;
+        product_variant: { id: number; odoo_variant_id: number | null } | null;
         product: { name: string; product_variants: Array<{ odoo_variant_id: number | null }> } | null;
     };
-    const allItems = (order.order_items as OrderItem[]);
+    const allItems = order.order_items as OrderItem[];
     const missingVariantNames = allItems
-        .filter((item) => !item.product?.product_variants?.[0]?.odoo_variant_id)
+        .filter((item) => !(item.product_variant?.odoo_variant_id ?? item.product?.product_variants?.[0]?.odoo_variant_id))
         .map((item) => item.product?.name ?? "Unknown product");
     const items = allItems
         .map((item) => ({
-            odoo_variant_id: item.product?.product_variants?.[0]?.odoo_variant_id ?? null,
+            odoo_variant_id:
+                item.product_variant?.odoo_variant_id
+                ?? item.product?.product_variants?.[0]?.odoo_variant_id
+                ?? null,
+            local_variant_id: item.product_variant?.id ?? null,
             quantity: item.quantity,
             price: item.unit_price,
         }))
@@ -289,6 +302,17 @@ async function pushToOdoo(supabase: ReturnType<typeof createClient>, order_id: s
             .from("orders")
             .update({ odoo_order_id: syncResult.odoo_order_id, status: "processing", updated_at: new Date().toISOString() })
             .eq("id", order_id);
+
+        // Immediately decrement Supabase stock so concurrent orders within the cron window
+        // see accurate stock (Odoo has already reserved these quantities).
+        for (const item of items) {
+            if (item.local_variant_id) {
+                await supabase.rpc("decrement_variant_stock", {
+                    p_variant_id: item.local_variant_id,
+                    p_quantity: item.quantity,
+                });
+            }
+        }
     }
 
     await logEvent(supabase, "order.odoo_synced", "order", order_id, {

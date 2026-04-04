@@ -89,7 +89,8 @@ serve(async (req) => {
                 `
                 id, user_id, status, odoo_order_id,
                 order_items (
-                    quantity, unit_price,
+                    quantity, unit_price, variant_id,
+                    product_variant:product_variants ( id, odoo_variant_id, stock_quantity ),
                     product:products (
                         name,
                         product_variants ( id, odoo_variant_id, stock_quantity )
@@ -110,22 +111,25 @@ serve(async (req) => {
                 400,
             );
 
-        // 1b. Stock validation — reject if any item exceeds available stock
+        // 1b. Stock validation — use the specific variant's stock if variant_id is set,
+        //     otherwise fall back to summing all variants (backward compat for old orders).
         type StockItem = {
             quantity: number;
+            variant_id: number | null;
+            product_variant: { id: number; stock_quantity: number } | null;
             product: { name: string; product_variants: Array<{ id: number; stock_quantity: number }> } | null;
         };
         const stockErrors: string[] = [];
         for (const item of order.order_items as StockItem[]) {
             if (!item.product) continue;
-            const totalStock = item.product.product_variants.reduce(
-                (s, v) => s + v.stock_quantity, 0,
-            );
-            if (item.quantity > totalStock) {
+            const available = item.product_variant
+                ? item.product_variant.stock_quantity
+                : item.product.product_variants.reduce((s, v) => s + v.stock_quantity, 0);
+            if (item.quantity > available) {
                 stockErrors.push(
-                    totalStock === 0
+                    available === 0
                         ? `${item.product.name} is out of stock`
-                        : `${item.product.name}: only ${totalStock} available, ordered ${item.quantity}`,
+                        : `${item.product.name}: only ${available} available, ordered ${item.quantity}`,
                 );
             }
         }
@@ -164,10 +168,14 @@ serve(async (req) => {
             profile?.full_name ??
             ([profile?.first_name, profile?.last_name].filter(Boolean).join(" ") || user.email);
 
-        // 4. Build items for Odoo sync
+        // 4. Build items for Odoo sync.
+        //    Use the specific variant's odoo_variant_id when variant_id is set (new orders).
+        //    Fall back to product_variants[0] for old orders that predate the variant_id column.
         type OrderItem = {
             quantity: number;
             unit_price: number;
+            variant_id: number | null;
+            product_variant: { id: number; odoo_variant_id: number | null } | null;
             product: {
                 product_variants: Array<{ odoo_variant_id: number | null }>;
             } | null;
@@ -176,7 +184,10 @@ serve(async (req) => {
         const odooItems = (order.order_items as OrderItem[])
             .map((item) => ({
                 odoo_variant_id:
-                    item.product?.product_variants?.[0]?.odoo_variant_id ?? null,
+                    item.product_variant?.odoo_variant_id
+                    ?? item.product?.product_variants?.[0]?.odoo_variant_id
+                    ?? null,
+                local_variant_id: item.product_variant?.id ?? null,
                 quantity: item.quantity,
                 price: item.unit_price,
             }))
@@ -204,6 +215,16 @@ serve(async (req) => {
 
                 if (syncResult.success && syncResult.odoo_order_id) {
                     odooOrderId = syncResult.odoo_order_id;
+                    // Immediately decrement Supabase stock so the next order within the
+                    // 30-min cron window sees accurate stock (Odoo has already reserved it).
+                    for (const item of odooItems) {
+                        if (item.local_variant_id) {
+                            await supabase.rpc("decrement_variant_stock", {
+                                p_variant_id: item.local_variant_id,
+                                p_quantity: item.quantity,
+                            });
+                        }
+                    }
                 } else {
                     odooError = syncResult.error ?? "sync-to-odoo returned no order ID";
                 }

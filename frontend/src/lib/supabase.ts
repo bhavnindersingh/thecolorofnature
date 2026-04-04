@@ -236,7 +236,7 @@ export const getOrderTimeline = (orderId: string) =>
 
 /** Create a new order, then insert its items */
 export const createOrder = async (
-    items: Array<{ product_id: number; quantity: number; unit_price: number }>,
+    items: Array<{ product_id: number; variant_id?: number | null; quantity: number; unit_price: number }>,
     shippingAddress: Record<string, string>,
     totalAmount: number,
     shippingAddressId?: string,
